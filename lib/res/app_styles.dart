@@ -11,11 +11,8 @@ class AppStyles {
   static final TextStyle titleText16_500 = TextStyle(
       fontSize: 16, color: AppColors.title, fontWeight: FontWeight.w500);
 
-  static final TextStyle grayText15_400 = TextStyle(
-      fontSize: 15, color: AppColors.grayText, fontWeight: FontWeight.w400);
-
-  static final TextStyle grayText16_700 = TextStyle(
-      fontSize: 16, color: AppColors.grayText, fontWeight: FontWeight.w700);
+  static final TextStyle grayText16_500 = TextStyle(
+      fontSize: 16, color: AppColors.grayText, fontWeight: FontWeight.w500);
 
   static final TextStyle redText16 = TextStyle(
       fontSize: 16, color: AppColors.redText, fontWeight: FontWeight.w500);
@@ -34,4 +31,8 @@ class AppStyles {
 
   static final TextStyle grayText14_400 = TextStyle(
       fontSize: 14, color: AppColors.grayText, fontWeight: FontWeight.w400);
+
+      static final TextStyle grayText12_400 = TextStyle(
+      fontSize: 15, color: AppColors.grayText, fontWeight: FontWeight.w400);
+
 }

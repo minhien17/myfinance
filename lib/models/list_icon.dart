@@ -50,7 +50,14 @@ List<ItemIcon> ListIcon = [
       ),
       title: 'family',
       description: "Family & Love"),
-  
+  ItemIcon(
+      img: Image.asset(
+        'assets/icons/houseware.png',
+        height: 30,
+        width: 30,
+      ),
+      title: 'houseware',
+      description: "Houseware"),
   ItemIcon(
       img: Image.asset(
         'assets/icons/transportation.png',
@@ -84,5 +91,49 @@ String? titleOf(String type) {
       return ListIcon[i].description;
     }
   }
-  return null;
+  return "";
 }
+
+List<ItemIcon> ListIconGroup = [
+  ItemIcon(
+      img: Image.asset(
+        'assets/icons/home.png',
+        height: 30,
+        width: 30,
+      ),
+      title: 'home',
+      description: "Rental"),
+  ItemIcon(
+      img: Image.asset(
+        'assets/icons/food.png',
+        height: 30,
+        width: 30,
+      ),
+      title: 'food',
+      description: "Food & Drink"),
+  ItemIcon(
+      img: Image.asset(
+        'assets/icons/houseware.png',
+        height: 30,
+        width: 30,
+      ),
+      title: 'houseware',
+      description: "Houseware"),
+  ItemIcon(
+      img: Image.asset(
+        'assets/icons/entertain.png',
+        height: 30,
+        width: 30,
+      ),
+      title: 'entertainment',
+      description: "Entertainment"),
+  
+  ItemIcon(
+      img: Image.asset(
+        'assets/icons/other.png',
+        height: 30,
+        width: 30,
+      ),
+      title: 'other',
+      description: "Other Expense"),
+];

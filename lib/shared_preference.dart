@@ -21,10 +21,10 @@ class SharedPreferenceUtil {
     await prefs.setString(SPrefCache.KEY_USERNAME, username);
   }
 
-  // static Future saveEmail(String email) async {
-  //   SharedPreferences prefs = await SharedPreferences.getInstance();
-  //   await prefs.setString(SPrefCache.KEY_EMAIL, email);
-  // }
+  static Future saveEmail(String email) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setString(SPrefCache.KEY_EMAIL, email);
+  }
 
   // static Future saveImage(String imageUrl) async {
   //   SharedPreferences prefs = await SharedPreferences.getInstance();
@@ -43,10 +43,10 @@ class SharedPreferenceUtil {
     return prefs.getString(SPrefCache.KEY_USERNAME) ?? '';
   }
 
-  // static Future<String> getEmail() async {
-  //   SharedPreferences prefs = await SharedPreferences.getInstance();
-  //   return prefs.getString(SPrefCache.KEY_EMAIL) ?? '';
-  // }
+  static Future<String> getEmail() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    return prefs.getString(SPrefCache.KEY_EMAIL) ?? '';
+  }
 
   // static Future<String> getImage() async {
   //   SharedPreferences prefs = await SharedPreferences.getInstance();

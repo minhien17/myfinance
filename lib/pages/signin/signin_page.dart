@@ -5,6 +5,7 @@ import 'package:my_finance/api/api_util.dart';
 import 'package:my_finance/common/flutter_toast.dart';
 import 'package:my_finance/common/loading_dialog.dart';
 import 'package:my_finance/pages/home/home.dart';
+import 'package:my_finance/pages/signin/signup_page.dart';
 import 'package:my_finance/shared_preference.dart';
 
 // --- Widget chính của màn hình "Sign in" ---
@@ -30,6 +31,11 @@ class _SignInScreenState extends State<SignInScreen> {
     return;
   }
 
+  if (password.length < 6){
+    toastInfo(msg: "Password must have at least 6 characters");
+    return;
+  }
+
   // Kiểm tra định dạng email
   final emailRegex = RegExp(r'^[^@]+@[^@]+\.[^@]+$');
   if (!emailRegex.hasMatch(email)) {
@@ -39,14 +45,25 @@ class _SignInScreenState extends State<SignInScreen> {
   }
 
     showLoading(context);
-    ApiUtil.getInstance()!.get(
-    url: "https://67297e9b6d5fa4901b6d568f.mockapi.io/api/test/transactions",
+    ApiUtil.getInstance()!.post(
+    body: {
+      "email":email,
+      "password":password
+    },
+    url: "http://localhost:3003/auth/login",// fixx
     onSuccess: (response) {
       hideLoading();
-      // giả sử response.data là 1 mảng JSON
       // lấy token và user name
-      SharedPreferenceUtil.saveToken("token");
-      SharedPreferenceUtil.saveUsername("Hiển");
+      var res = response.data;
+      String token = res["access_token"];
+      String username = res["user"]["username"];
+      String email = res["user"]["email"];
+      
+      print(res);
+      print(username);
+      SharedPreferenceUtil.saveToken(token);
+      SharedPreferenceUtil.saveUsername(username);
+      SharedPreferenceUtil.saveEmail(email);
       setState(() {
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(builder: (_) => MainPage()),(Route<dynamic> route) => false,
@@ -259,7 +276,11 @@ class _SignInScreenState extends State<SignInScreen> {
                 // Nút "Sign up"
                 TextButton(
                   onPressed: () {
-                    print('Chuyển sang Đăng ký...');
+                    setState(() {
+                      Navigator.of(context).pushReplacement(
+                        MaterialPageRoute(builder: (_) => SignUpScreen()),
+                      );
+                    });
                   },
                   child: Text(
                     'Sign up',

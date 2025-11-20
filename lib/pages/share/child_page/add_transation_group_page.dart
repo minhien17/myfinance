@@ -9,18 +9,28 @@ import 'package:my_finance/models/list_icon.dart';
 import 'package:my_finance/models/transaction_model.dart';
 import 'package:my_finance/res/app_colors.dart';
 
-class AddExpensePage extends StatefulWidget {
+class AddTransactionGroupPage extends StatefulWidget {
   @override
-  _AddExpensePageState createState() => _AddExpensePageState();
+  _AddTransactionGroupPageState createState() => _AddTransactionGroupPageState();
 }
 
-class _AddExpensePageState extends State<AddExpensePage> {
+class _AddTransactionGroupPageState extends State<AddTransactionGroupPage> {
   final TextEditingController textController = TextEditingController();
 
   double amount = 0;
   String category = "food"; // default
   String note = "";
   DateTime date = DateTime.now();
+
+  List<String> members = ["Hiển", "Trọng", "Đạt"];
+  String selectedMember = '';
+
+  @override
+  void initState() {
+    // TODO: implement initState
+    super.initState();
+    selectedMember = members[0];
+  }
 
   @override
   void dispose() {
@@ -51,6 +61,7 @@ class _AddExpensePageState extends State<AddExpensePage> {
   Future<void> callApi(BuildContext thiscontext) async {
     await addExpense(amount: amount, category: category, dateTime: date,context: thiscontext, note: note);
 
+    print(selectedMember);
     Navigator.pop(thiscontext); // quay lại màn hình trước
   }
 
@@ -137,7 +148,7 @@ class _AddExpensePageState extends State<AddExpensePage> {
                                     fontWeight:
                                         FontWeight.bold, // Set font weight
                                   ),
-                                  items: ListIcon.map((ItemIcon item) {
+                                  items: ListIconGroup.map((ItemIcon item) {
                                     return DropdownMenuItem<String>(
                                         value: item.title,
                                         child: Row(
@@ -159,6 +170,40 @@ class _AddExpensePageState extends State<AddExpensePage> {
                                   
                                 ),
                       ),
+                    ],
+                  ),
+                  const SizedBox(height: 15),
+                  Row(
+                    children: [
+                      const Icon(BootstrapIcons.person, color: AppColors.blackIcon, size: 28),
+                      const SizedBox(width: 15),
+                      Expanded(
+                        child: DropdownButtonFormField<String>(
+                          // value: selectedMember,
+                          items: members.map((member) {
+                            return DropdownMenuItem<String>(
+                              value: member,
+                              child: Text(
+                                member,
+                                style: const TextStyle(fontSize: 18, color: AppColors.blackIcon),
+                              ),
+                            );
+                          }).toList(),
+                          onChanged: (value) {
+                            setState(() {
+                              selectedMember = value!;
+                            });
+                          },
+                          decoration: const InputDecoration(
+                            hintText: 'Chọn thành viên',
+                            
+                          ),
+                          dropdownColor: Colors.white,
+                          style: const TextStyle(
+                            fontSize: 18,
+                            // color: Colors.orange,
+                          ),
+                        ),),
                     ],
                   ),
                   const SizedBox(height: 15),
@@ -255,6 +300,7 @@ Future<void> addExpense({
   required BuildContext context,
 }) async {
   final expense = TransactionModel.full(
+    id: DateTime.now().millisecondsSinceEpoch.toString(), // fake id
     amount: amount,
     category: category,
     note: note,
@@ -267,8 +313,7 @@ Future<void> addExpense({
   final completer = Completer<void>();
   // Nếu gọi API
   ApiUtil.getInstance()!.post(
-    url: "http://localhost:3001/transactions",
-    //"https://67297e9b6d5fa4901b6d568f.mockapi.io/api/test/transaction",
+    url: "https://67297e9b6d5fa4901b6d568f.mockapi.io/api/test/transaction",
     body:  expense.toJson(),
     onSuccess: (response) {
       

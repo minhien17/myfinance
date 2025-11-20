@@ -33,6 +33,11 @@ class _SignUpScreenState extends State<SignUpScreen> {
     return;
   }
 
+   if (password.length < 6){
+    toastInfo(msg: "Password must have at least 6 characters");
+    return;
+  }
+
   // Kiểm tra định dạng email
   final emailRegex = RegExp(r'^[^@]+@[^@]+\.[^@]+$');
   if (!emailRegex.hasMatch(email)) {
@@ -43,12 +48,17 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
 
     showLoading(context);
-    ApiUtil.getInstance()!.get(
-    url: "https://67297e9b6d5fa4901b6d568f.mockapi.io/api/test/transactions",
+    ApiUtil.getInstance()!.post(
+    body: {
+      "username": username,
+      "email":email,
+      "password":password
+    },
+    url: "http://localhost:3003/auth/register", // fixx
     onSuccess: (response) {
       hideLoading();
-      // giả sử response.data là 1 mảng JSON
-      SharedPreferenceUtil.saveToken("token");
+      var res = response.data;
+
       setState(() {
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (_) => SignInScreen()),

@@ -9,23 +9,55 @@ import 'package:my_finance/models/list_icon.dart';
 import 'package:my_finance/models/transaction_model.dart';
 import 'package:my_finance/res/app_colors.dart';
 
-class AddExpensePage extends StatefulWidget {
+class EditTransactionGroupPage extends StatefulWidget {
+  final double amount;
+  final String category;
+  final String note;
+  final DateTime date;
+  final String owner;
+
+  const EditTransactionGroupPage({
+    Key? key,
+    required this.amount,
+    required this.category,
+    required this.note,
+    required this.date,
+    required this.owner
+  }) : super(key: key);
   @override
-  _AddExpensePageState createState() => _AddExpensePageState();
+  _EditTransactionGroupPageState createState() => _EditTransactionGroupPageState();
 }
 
-class _AddExpensePageState extends State<AddExpensePage> {
-  final TextEditingController textController = TextEditingController();
+class _EditTransactionGroupPageState extends State<EditTransactionGroupPage> {
+  TextEditingController amountTextController = TextEditingController();
+  TextEditingController noteTextController = TextEditingController();
 
   double amount = 0;
   String category = "food"; // default
   String note = "";
+  String selectedMember = '';
+  
+  List<String> members = ["Hiển", "Trọng", "Đạt"];
   DateTime date = DateTime.now();
 
   @override
   void dispose() {
-    textController.dispose();
+    amountTextController.dispose();
     super.dispose();
+  }
+  @override
+  void initState() {
+    // TODO: implement initState
+    super.initState();
+    amount = widget.amount;
+    category = widget.category;
+    note = widget.note;
+    date = widget.date;
+    selectedMember = widget.owner;
+
+    amountTextController = TextEditingController(text: amount.toString());
+    noteTextController = TextEditingController(text: note.toString());
+    
   }
 
   void datePicker() async {
@@ -49,8 +81,9 @@ class _AddExpensePageState extends State<AddExpensePage> {
   }
 
   Future<void> callApi(BuildContext thiscontext) async {
+    // print("$amount + $category + $note");
     await addExpense(amount: amount, category: category, dateTime: date,context: thiscontext, note: note);
-
+    
     Navigator.pop(thiscontext); // quay lại màn hình trước
   }
 
@@ -74,7 +107,7 @@ class _AddExpensePageState extends State<AddExpensePage> {
           icon: const Icon(Icons.close, color: Colors.black),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text('Add Transaction'),
+        title: const Text('Edit Transaction'),
       ),
       body: Container(
         
@@ -98,18 +131,18 @@ class _AddExpensePageState extends State<AddExpensePage> {
                       const SizedBox(width: 15),
                       Expanded(
                         child: TextField(
-                          controller: textController,
+                          controller: amountTextController,
                           onChanged: onChanged,
                           decoration: const InputDecoration(
                             hintText: '0',
                             enabledBorder: UnderlineInputBorder(
-                              borderSide: BorderSide(color: Colors.green),
+                              borderSide: BorderSide(color: Colors.orange),
                             ),
                           ),
                           keyboardType: TextInputType.number,
                           style: const TextStyle(
                             fontSize: 18,
-                            color: Colors.green,
+                            color: Colors.orange,
                           ),
                         ),
                       ),
@@ -162,6 +195,41 @@ class _AddExpensePageState extends State<AddExpensePage> {
                     ],
                   ),
                   const SizedBox(height: 15),
+                  Row(
+                    children: [
+                      const Icon(BootstrapIcons.person, color: AppColors.blackIcon, size: 28),
+                      const SizedBox(width: 15),
+                      Expanded(
+                        child: DropdownButtonFormField<String>(
+                          value: selectedMember,
+                          items: members.map((member) {
+                            return DropdownMenuItem<String>(
+                              value: member,
+                              child: Text(
+                                member,
+                                style: const TextStyle(fontSize: 18, color: AppColors.blackIcon),
+                              ),
+                            );
+                          }).toList(),
+                          onChanged: (value) {
+                            setState(() {
+                              selectedMember = value!;
+                            });
+                          },
+                          decoration: const InputDecoration(
+                            hintText: 'Chọn thành viên',
+                            
+                          ),
+                          dropdownColor: Colors.white,
+                          style: const TextStyle(
+                            fontSize: 18,
+                            // color: Colors.orange,
+                          ),
+                        ),),
+                    ],
+                  ),
+                  const SizedBox(height: 15),
+
 
                   /// Note
                   Row(
@@ -171,6 +239,7 @@ class _AddExpensePageState extends State<AddExpensePage> {
                       const SizedBox(width: 15),
                       Expanded(
                         child: TextField(
+                          controller: noteTextController,
                           decoration: const InputDecoration(
                               hintText: 'Write note'),
                           style: const TextStyle(fontSize: 18),
@@ -255,6 +324,7 @@ Future<void> addExpense({
   required BuildContext context,
 }) async {
   final expense = TransactionModel.full(
+    id: DateTime.now().millisecondsSinceEpoch.toString(), // fake id
     amount: amount,
     category: category,
     note: note,
@@ -267,8 +337,7 @@ Future<void> addExpense({
   final completer = Completer<void>();
   // Nếu gọi API
   ApiUtil.getInstance()!.post(
-    url: "http://localhost:3001/transactions",
-    //"https://67297e9b6d5fa4901b6d568f.mockapi.io/api/test/transaction",
+    url: "https://67297e9b6d5fa4901b6d568f.mockapi.io/api/test/transaction",
     body:  expense.toJson(),
     onSuccess: (response) {
       

@@ -4,15 +4,36 @@ import 'package:my_finance/pages/setting/child_page/about_page.dart';
 import 'package:my_finance/pages/setting/child_page/my_account_page.dart';
 import 'package:my_finance/pages/setting/child_page/setting_page.dart';
 import 'package:my_finance/pages/setting/child_page/support_page.dart';
+import 'package:my_finance/shared_preference.dart';
 
 class AccountPage extends StatefulWidget {
   const AccountPage({super.key});
 
   @override
   State<AccountPage> createState() => _AccountPageState();
+
+
 }
 
 class _AccountPageState extends State<AccountPage> {
+  String username = "";
+  String email = "";
+
+  Future<void> getUserInfor () async {
+    username = await SharedPreferenceUtil.getUsername();
+    email = await SharedPreferenceUtil.getEmail();
+    setState(() {
+      
+    });
+  }
+
+  @override
+  void initState() {
+    // TODO: implement initState
+    super.initState();
+    getUserInfor();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -33,8 +54,8 @@ class _AccountPageState extends State<AccountPage> {
                 height: 80,
                 child: Image.asset("assets/images/account.png")),
                 SizedBox(height: 10,),
-              Text("Hiển Linh"),
-              Text("hienlinh2624@gmail.com"),
+              Text(username),
+              Text(email),
               SizedBox(
                 height: 30,
                 child: Image.asset("assets/images/google.png")),

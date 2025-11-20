@@ -1,9 +1,11 @@
 import 'package:bootstrap_icons/bootstrap_icons.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:my_finance/models/group_model.dart';
 import 'package:my_finance/pages/share/child_page/transation_group_page.dart';
 import 'package:my_finance/pages/share/create_group_page.dart';
 import 'package:my_finance/res/app_colors.dart';
+import 'package:my_finance/res/app_styles.dart';
 
 
 class SharePage extends StatefulWidget {
@@ -14,6 +16,18 @@ class SharePage extends StatefulWidget {
 }
 
 class _SharePageState extends State<SharePage> {
+
+  @override
+void initState() {
+  super.initState();
+  SystemChrome.setSystemUIOverlayStyle(
+    const SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent, // làm trong suốt
+      statusBarIconBrightness: Brightness.light, // icon trắng
+      statusBarBrightness: Brightness.dark, // iOS
+    ),
+  );
+}
 
   // Dữ liệu mô phỏng từ API/Database
   // Khởi tạo với một vài nhóm để hiển thị
@@ -50,10 +64,26 @@ class _SharePageState extends State<SharePage> {
       appBar: AppBar(
         title: const Text(
           'Share money',
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
+          // style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
         ),
-        backgroundColor: Colors.white,
+        backgroundColor: AppColors.background,
         elevation: 0, // Không có bóng dưới AppBar
+        actions: [
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: InkWell(
+              onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => CreateGroupPage()),
+              );
+            },
+              child: Text("Join group", 
+              style: AppStyles.linkText16_500,
+              ),
+            ),
+          ),
+        ],
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -143,28 +173,24 @@ class _SharePageState extends State<SharePage> {
     return ElevatedButton(
       onPressed: _addGroup,
       style: ElevatedButton.styleFrom(
-      backgroundColor: Colors.white, // Màu nền
-      foregroundColor: AppColors.title, // Màu chữ/icon
-      minimumSize: const Size(double.infinity, 50),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(10),
-        side: const BorderSide( // 🔹 Thêm viền ngoài
-      color: Colors.black12, // Màu viền
-      width: 1,              // Độ dày
-    ),
-      ),
-      elevation: 4, // Độ đổ bóng tương tự BoxShadow blurRadius: 4
-      shadowColor: Colors.black12, // Màu bóng
-      
-    ),
-
-      child: const Text(
-        'Add group',
-        style: TextStyle(
-          color: Colors.black87, // Màu chữ đen/xám đậm
-          fontSize: 18,
-          fontWeight: FontWeight.bold,
+          backgroundColor: Colors.white, // Màu nền
+          foregroundColor: AppColors.title, // Màu chữ/icon
+          minimumSize: const Size(double.infinity, 50),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: const BorderSide( // 🔹 Thêm viền ngoài
+          color: Colors.black12, // Màu viền
+          width: 1,              // Độ dày
         ),
+          ),
+          elevation: 4, // Độ đổ bóng tương tự BoxShadow blurRadius: 4
+          shadowColor: Colors.black12, // Màu bóng
+          
+        ),
+
+      child: Text(
+        'Add group',
+        style: AppStyles.titleText16_500
       ),
     );
   }

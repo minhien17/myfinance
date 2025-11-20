@@ -6,7 +6,9 @@ import 'package:my_finance/common/flutter_toast.dart';
 import 'package:my_finance/models/list_icon.dart';
 import 'package:my_finance/models/transaction_model.dart';
 import 'package:my_finance/pages/add/edit_page.dart';
+import 'package:my_finance/pages/transaction/report_page.dart';
 import 'package:my_finance/res/app_colors.dart';
+import 'package:my_finance/res/app_styles.dart';
 import 'package:my_finance/utils.dart';
 
 class TransactionPage extends StatefulWidget {
@@ -21,26 +23,99 @@ class _TransactionPageState extends State<TransactionPage> {
 
   List<TransactionModel> lists = [];
 
-  List<String> months = [];
+  List<String> months = ["8/2025", "9/2025", "10/2025", "11/2025"];
   double _totalExpense = 0; 
   double _totalIncome = 0;
   double _balance = 0;
+  bool _loading = true;
+
+  Map<String, dynamic> fakeTransactions = {
+    "month": "10/2025",
+    "currency": "VND",
+    "data": {
+      "food": 3500000,
+      "donation": 200000,
+      "education": 1200000,
+      "entertainment": 800000,
+      "family": 1600000,
+      "rental": 4500000,
+      "transportation": 900000,
+      "other": 500000,
+      "income": 15000000,
+      "houseware": 700000
+    },
+    "totals": {
+      "expense": 13700000,
+      "income": 15000000,
+      "balance": 1300000
+    }
+  };
+
+  final now = DateTime.now();
+  late ScrollController _scrollController;
+  String selectedMonth = '';
 
   void reLoadPage(){
     getTotal();
     getListMonth();
-    getListTransaction();
+    getListTransaction(selectedMonth);
   }
 
   @override
   void initState() {
     super.initState();
+    _scrollController = ScrollController(); 
+
+    selectedMonth = '${now.month.toString().padLeft(2, '0')}/${now.year}';
+    setState(() {
+      // Cuộn ListView đến cuối
+      _scrollToEnd();
+    });
     reLoadPage();  
   }
 
+  @override
+  void dispose() {
+    // TODO: implement dispose
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _scrollToEnd() {
+    if (_scrollController.hasClients) {
+      _scrollController.animateTo(
+        _scrollController.position.maxScrollExtent-1,
+        duration: const Duration(milliseconds: 500),
+        curve: Curves.easeOut,
+      );
+    } else {
+      // Nếu controller chưa có client (list chưa render) thì đợi 1 chút
+      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToEnd());
+    }
+  }
+
+  void _scrollToSelected() {
+    if (!_scrollController.hasClients) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToSelected());
+      return;
+    }
+
+    final selectedIndex = months.indexOf(selectedMonth);
+    const itemWidth = 100.0; // 👉 CHỈNH THEO ITEM CỦA BẠN
+    final offset = selectedIndex * itemWidth;
+
+    _scrollController.animateTo(
+      offset,
+      duration: const Duration(milliseconds: 400),
+      curve: Curves.easeOut,
+    );
+  }
+
+
   void getTotal() {
     ApiUtil.getInstance()!.get(url: "https://67297e9b6d5fa4901b6d568f.mockapi.io/api/test/home", onSuccess: (response){
-      var data = response.data[0];
+      //var data = response.data[0];
+      var data = fakeTransactions["totals"];
       
       _balance = data["balance"];
       _totalIncome = data['income'];
@@ -134,6 +209,7 @@ class _TransactionPageState extends State<TransactionPage> {
                     context,
                     MaterialPageRoute(
                       builder: (context) => EditExpensePage(
+                        id: expense.id,
                         amount: expense.amount,
                         category: expense.category,
                         note: expense.note ?? "",
@@ -141,7 +217,7 @@ class _TransactionPageState extends State<TransactionPage> {
                       ),
                     ),
                   );
-                  // Gọi reloadPage() nếu cần
+                  reLoadPage();
                 },
                 child: Row(
                   children: [
@@ -152,7 +228,7 @@ class _TransactionPageState extends State<TransactionPage> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            titleOf(expense.category) ??"",
+                            titleOf(expense.category) ?? "",
                             style: const TextStyle(fontWeight: FontWeight.bold),
                           ),
                           const SizedBox(height: 4),
@@ -194,7 +270,7 @@ class _TransactionPageState extends State<TransactionPage> {
           SliverAppBar(
             pinned: true,
             backgroundColor: Colors.white,
-            toolbarHeight: 150,
+            toolbarHeight: 160,
             flexibleSpace: Column(
               children: [
                 Container(
@@ -242,28 +318,54 @@ class _TransactionPageState extends State<TransactionPage> {
                     ],
                   ),
                 ),
+                SizedBox(height: 5,),
                 Container(
-                  height: 40,
-                  margin: const EdgeInsets.only(top: 10),
-                  child: ListView.builder(
-                    scrollDirection: Axis.horizontal,
-                    itemCount: months.length,
-                    itemBuilder: (context, index) {
-                      return Container(
-                        width: width / 3,
-                        child: InkWell(
-                          onTap: () {
-                            print(months[index]);
-                          },
-                          child: Center(
-                            child: Text(months[index],
-                                style: const TextStyle(fontSize: 16)),
+                height: 34,
+                margin: const EdgeInsets.only(bottom: 8),
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  controller: _scrollController, // 👈 Gán controller
+                  itemCount: months.length,
+                  itemBuilder: (context, index) {
+                    final monthValue = months[index];
+                    final isSelected = monthValue == selectedMonth;
+                    return GestureDetector(
+                      onTap: () async {
+                        if (isSelected) return;
+                        setState(() => selectedMonth = monthValue);
+                        _scrollToSelected();
+
+                        // 🔸 Gọi API khi đổi tháng
+                        getListTransaction(selectedMonth);
+                      },
+                      child: Container(
+                        width: width /3,
+                        margin: const EdgeInsets.symmetric(horizontal: 4),
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? Colors.green.withOpacity(0.1)
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: isSelected ? Colors.green : Colors.grey.shade300,
                           ),
                         ),
-                      );
-                    },
-                  ),
+                        child: Center(
+                          child: Text(
+                            months[index],
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight:
+                                  isSelected ? FontWeight.w500 : FontWeight.normal,
+                              color: isSelected ? Colors.green : Colors.black,
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
                 ),
+              ),
               ],
             ),
           ),
@@ -304,8 +406,32 @@ class _TransactionPageState extends State<TransactionPage> {
                     ),
                     const SizedBox(height: 15),
                     ElevatedButton(
-                      onPressed: widget.goHome,
-                      child: const Text("View report for this period"),
+                      style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.white, // Màu nền
+          foregroundColor: AppColors.title, // Màu chữ/icon
+          
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: const BorderSide( // 🔹 Thêm viền ngoài
+          color: Colors.black12, // Màu viền
+          width: 1,              // Độ dày
+        ),
+          ),
+          elevation: 10, // Độ đổ bóng tương tự BoxShadow blurRadius: 4
+          shadowColor: Colors.black12, // Màu bóng
+          
+        ),
+                      onPressed: (){
+                        Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => ReportPage(month: selectedMonth, 
+                              transactionsMap: fakeTransactions, // truyền nguyên Map
+                              ),
+                            ),
+                          );
+                      },
+                      child: Text("View report for this period", style: AppStyles.titleText16_500.copyWith(fontSize: 14),),
                     ),
                   ],
                 ),
@@ -313,7 +439,8 @@ class _TransactionPageState extends State<TransactionPage> {
               Container(
                 padding: const EdgeInsets.only(top: 15),
                 color: AppColors.background,
-                child: 
+                child: _loading ? 
+                Center(child: CircularProgressIndicator(),) :
                 Column(children: [...buildExpenseList(lists, context)]),
               ),
             ]),
@@ -323,18 +450,16 @@ class _TransactionPageState extends State<TransactionPage> {
     );
   }
   
-  void getSum() {}
   
   void getListMonth() {
     ApiUtil.getInstance()!.get(
-    url: "https://67297e9b6d5fa4901b6d568f.mockapi.io/api/test/transactions",
+    url: "http://localhost:3001/transactions/months",
     onSuccess: (response) {
       // giả sử response.data là 1 mảng JSON
-      List<dynamic> jsonList = response.data;
+      List<dynamic> jsonList = response.data["data"];
       if (!mounted) return;
       setState(() {
-        months =
-            jsonList.map((json) => TransactionModel.fromJson(json).id).toList();
+        months = jsonList.map((e) => e.toString()).toList();
       });
     },
     onError: (error) {
@@ -347,16 +472,23 @@ class _TransactionPageState extends State<TransactionPage> {
   );
   }
   
-  void getListTransaction() {
+  void getListTransaction(String nameOfMonth) {
     ApiUtil.getInstance()!.get(
-    url: "https://67297e9b6d5fa4901b6d568f.mockapi.io/api/test/transactions",
+    // url: ApiEndpoint.transacions,
+    url: "http://localhost:3001/transactions",
+    params: {
+      "monthYear":nameOfMonth
+    },
     onSuccess: (response) {
       // giả sử response.data là 1 mảng JSON
-      List<dynamic> jsonList = response.data;
+      List<dynamic> jsonList = response.data["data"];
+      //['data'];
+      print(jsonList);
       if (!mounted) return;
       setState(() {
         lists =
             jsonList.map((json) => TransactionModel.fromJson(json)).toList();
+        _loading = false;
       });
     },
     onError: (error) {

@@ -14,9 +14,11 @@ class EditExpensePage extends StatefulWidget {
   final String category;
   final String note;
   final DateTime date;
+  final String id;
 
   const EditExpensePage({
     Key? key,
+    required this.id,
     required this.amount,
     required this.category,
     required this.note,
@@ -76,7 +78,7 @@ class _EditExpensePageState extends State<EditExpensePage> {
 
   Future<void> callApi(BuildContext thiscontext) async {
     // print("$amount + $category + $note");
-    await addExpense(amount: amount, category: category, dateTime: date,context: thiscontext, note: note);
+    await addExpense(id: widget.id, amount: amount, category: category, dateTime: date,context: thiscontext, note: note);
     
     Navigator.pop(thiscontext); // quay lại màn hình trước
   }
@@ -101,7 +103,40 @@ class _EditExpensePageState extends State<EditExpensePage> {
           icon: const Icon(Icons.close, color: Colors.black),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text('Add Transaction'),
+        title: const Text('Edit Transaction'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.delete, color: Colors.red),
+            onPressed: () async {
+              // ✅ Hiển thị dialog xác nhận
+              final confirm = await showDialog(
+                context: context,
+                builder: (_) => AlertDialog(
+                  title: const Text("Delete Transaction"),
+                  content: const Text("Are you sure you want to delete this transaction?"),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context, false),
+                      child: const Text("Cancel"),
+                    ),
+                    TextButton(
+                      onPressed: () async {
+                        Navigator.pop(context, true);
+                        await deleteExpense(id: widget.id, context: context);
+                        Navigator.pop(context); // quay lại màn hình trước
+                      },
+                      child: const Text("Delete", style: TextStyle(color: Colors.red)),
+                    ),
+                  ],
+                ),
+              );
+
+              // ❌ Người dùng không confirm
+              if (confirm != true) return;
+
+            },
+          ),
+        ],
       ),
       body: Container(
         
@@ -276,6 +311,7 @@ class _EditExpensePageState extends State<EditExpensePage> {
 }
 
 Future<void> addExpense({
+  required String id,
   required double amount,
   required String category,
   required String note,
@@ -283,7 +319,7 @@ Future<void> addExpense({
   required BuildContext context,
 }) async {
   final expense = TransactionModel.full(
-    id: DateTime.now().millisecondsSinceEpoch.toString(), // fake id
+    id: id,
     amount: amount,
     category: category,
     note: note,
@@ -295,12 +331,58 @@ Future<void> addExpense({
    // 3. Sử dụng Completer để đợi API hoàn thành
   final completer = Completer<void>();
   // Nếu gọi API
-  ApiUtil.getInstance()!.post(
-    url: "https://67297e9b6d5fa4901b6d568f.mockapi.io/api/test/transaction",
+  ApiUtil.getInstance()!.put(
+    url: "http://localhost:3001/transactions/$id",
     body:  expense.toJson(),
     onSuccess: (response) {
       
-      print("✅ Add expense success: ${response.data}");
+      completer.complete(); 
+      // hideLoading();
+    },
+    onError: (error) {
+      print("❌ Add expense error: $error");
+      completer.completeError(error); 
+      // hideLoading();
+    },
+  );
+
+  try {
+    // 5. ĐỢI API HOÀN THÀNH (Đây là bước QUAN TRỌNG NHẤT)
+    await completer.future;
+
+  } catch (e) {
+    // Bắt lỗi nếu completer.completeError được gọi
+    // Thêm logic thông báo lỗi ở đây (ví dụ: toastInfo)
+
+  } finally {
+    // 6. ẨN LOADING (Đảm bảo được gọi trong mọi trường hợp)
+    if (context.mounted) {
+      hideLoading();
+    }
+    
+    // Tùy chọn: Đóng màn hình hiện tại sau khi hoàn thành
+    // if (context.mounted) {
+    //   Navigator.of(context).pop(); 
+    // }
+  }
+
+}
+
+Future<void> deleteExpense({
+  required String id,
+  required BuildContext context,
+}) async {
+  
+  showLoading(context);
+
+   // 3. Sử dụng Completer để đợi API hoàn thành
+  final completer = Completer<void>();
+  // Nếu gọi API
+  ApiUtil.getInstance()!.delete(
+    url: "http://localhost:3001/transactions/$id",
+    onSuccess: (response) {
+      
+      print("✅ Delete expense success");
       completer.complete(); 
       // hideLoading();
     },

@@ -5,8 +5,11 @@ import 'package:my_finance/api/api_util.dart';
 import 'package:my_finance/common/flutter_toast.dart';
 import 'package:my_finance/models/list_icon.dart';
 import 'package:my_finance/models/transaction_model.dart';
-import 'package:my_finance/pages/add/edit_page.dart';
+import 'package:my_finance/pages/share/child_page/add_transation_group_page.dart';
+import 'package:my_finance/pages/share/child_page/edit_transation_group_page.dart';
+import 'package:my_finance/pages/share/child_page/view_report_page.dart';
 import 'package:my_finance/res/app_colors.dart';
+import 'package:my_finance/shared_preference.dart';
 import 'package:my_finance/utils.dart';
 
 class TransactionGroupPage extends StatefulWidget {
@@ -27,16 +30,22 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
   bool _loading = true;
 
   double _totalExpense = 0; 
+  String owner = '';
 
   void reLoadPage(){
     getListMonth();
     getListTransaction(selectedMonth);
   }
 
+  Future<void> getOwner() async {
+    owner = await SharedPreferenceUtil.getUsername();
+  }
+
   @override
   void initState() {
     super.initState();
     _scrollController = ScrollController(); 
+    
 
     selectedMonth = '${now.month.toString().padLeft(2, '0')}/${now.year}';
     setState(() {
@@ -66,6 +75,23 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
     }
   }
 
+    void _scrollToSelected() {
+      if (!_scrollController.hasClients) {
+        WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToSelected());
+        return;
+      }
+
+      final selectedIndex = months.indexOf(selectedMonth);
+      const itemWidth = 100.0; // 👉 CHỈNH THEO ITEM CỦA BẠN
+      final offset = selectedIndex * itemWidth;
+
+      _scrollController.animateTo(
+        offset,
+        duration: const Duration(milliseconds: 400),
+        curve: Curves.easeOut,
+      );
+    }
+
 
   List<Widget> buildExpenseList(List<TransactionModel> lists, BuildContext context) {
   // 1️⃣ Gom nhóm theo ngày (YYYY-MM-DD)
@@ -87,7 +113,7 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
     // ✅ Tính tổng tiền trong ngày
     double totalAmount = dailyExpenses.fold(
       0,
-      (sum, e) => sum + (e.category == 'income' ? e.amount : -e.amount),
+      (sum, e) => sum + e.amount,
     );
 
     return Container(
@@ -146,11 +172,12 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
                   await Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => EditExpensePage(
+                      builder: (context) => EditTransactionGroupPage(
                         amount: expense.amount,
                         category: expense.category,
                         note: expense.note ?? "",
                         date: expense.dateTime,
+                        owner: expense.owner,
                       ),
                     ),
                   );
@@ -176,11 +203,19 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
                         ],
                       ),
                     ),
-                    
                     Text(
-                      Common.formatNumber(expense.amount.toString()),
-                      style: expense.category != "income" ?
-                      TextStyle(color: Colors.red, fontSize: 16) :   TextStyle(color: Colors.blue, fontSize: 16),
+                      expense.owner,
+                      style: 
+                      TextStyle(color: AppColors.blackIcon, fontSize: 16)
+                    ),
+                    SizedBox(width: 50,),
+                    Align(
+                      alignment: AlignmentGeometry.centerRight,
+                      child: Text(
+                        Common.formatNumber(expense.amount.toString()),
+                        style:
+                        TextStyle(color: Colors.red, fontSize: 16),
+                      ),
                     ),
                   ],
                 ),
@@ -237,18 +272,19 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
                       onTap: () async {
                         if (isSelected) return;
                         setState(() => selectedMonth = monthValue);
+                        _scrollToSelected();
 
                         // 🔸 Gọi API khi đổi tháng
                         getListTransaction(selectedMonth);
                       },
                       child: Container(
-                        width: width / 4,
+                        width: width / 3,
                         margin: const EdgeInsets.symmetric(horizontal: 4),
                         decoration: BoxDecoration(
                           color: isSelected
                               ? Colors.green.withOpacity(0.1)
                               : Colors.transparent,
-                          borderRadius: BorderRadius.circular(10),
+                          borderRadius: BorderRadius.circular(20),
                           border: Border.all(
                             color: isSelected ? Colors.green : Colors.grey.shade300,
                           ),
@@ -259,7 +295,7 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
                             style: TextStyle(
                               fontSize: 16,
                               fontWeight:
-                                  isSelected ? FontWeight.bold : FontWeight.normal,
+                                  isSelected ? FontWeight.w500 : FontWeight.normal,
                               color: isSelected ? Colors.green : Colors.black,
                             ),
                           ),
@@ -300,7 +336,63 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
                             style: const TextStyle(color: AppColors.blackIcon, fontSize: 18)),
                       ],
                     ),
+                    const SizedBox(height: 15),
+                   Row(
                     
+                    children: [
+                      // 🔹 Nút Add Transaction
+                      Expanded(
+                        flex: 1,
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.green,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 15),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                          ),
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (context) => AddTransactionGroupPage()),
+                            );
+                          },
+                          child: const Text(
+                            "Add Expense",
+                            style: TextStyle(fontSize: 16),
+                          ),
+                        ),
+                      ),
+                      SizedBox(width: 20,),
+
+                      // 🔹 Nút View Detail
+                      Expanded(
+                        flex: 1,
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.blue,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 15),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                          ),
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (context) => ViewReportPage()),
+                            );
+                          },
+                          child: const Text(
+                            "View Detail",
+                            style: TextStyle(fontSize: 16),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+
                   ],
                 ),
               ),
@@ -330,8 +422,8 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
       List<dynamic> jsonList = response.data;
       if (!mounted) return;
       setState(() {
-        months =
-            jsonList.map((json) => TransactionModel.fromJson(json).type).toList();
+        // months =
+        //     jsonList.map((json) => TransactionModel.fromJson(json).).toList();
         _loading = false;
       });
     },

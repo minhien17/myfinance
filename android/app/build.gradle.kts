@@ -1,3 +1,7 @@
+import org.gradle.kotlin.dsl.dependencies
+import org.gradle.kotlin.dsl.implementation
+import org.gradle.kotlin.dsl.coreLibraryDesugaring
+
 plugins {
     id("com.android.application")
     id("kotlin-android")
@@ -13,6 +17,7 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
+        isCoreLibraryDesugaringEnabled = true
     }
 
     kotlinOptions {
@@ -41,4 +46,10 @@ android {
 
 flutter {
     source = "../.."
+}
+
+
+dependencies {
+    add("implementation", "org.jetbrains.kotlin:kotlin-stdlib-jdk8")
+    add("coreLibraryDesugaring", "com.android.tools:desugar_jdk_libs:2.1.4")
 }

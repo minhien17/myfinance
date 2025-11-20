@@ -1,8 +1,13 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:my_finance/api/api_util.dart';
+import 'package:my_finance/notification/timezone.dart';
+import 'package:my_finance/pages/transaction/report_page.dart';
 import 'package:my_finance/res/app_colors.dart';
 import 'package:my_finance/res/app_styles.dart';
 import 'package:my_finance/utils.dart';
+import 'package:fl_chart/fl_chart.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({Key? key}) : super(key: key);
@@ -16,16 +21,84 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   double _totalExpense = 0; 
   double _totalIncome = 0;
   double _balance = 0;
+  final now = DateTime.now();
+  String selectedMonth = '';
+  List<double> currentMonthTotals = [];
+  List<double> previousMonthTotals = [];
 
   late TabController _tabController;
+
+  Map<String, dynamic> fakeTransactions = {
+    "month": "10/2025",
+    "currency": "VND",
+    "data": {
+      "food": 3500000,
+      "donation": 200000,
+      "education": 1200000,
+      "entertainment": 800000,
+      "family": 1600000,
+      "rental": 4500000,
+      "transportation": 900000,
+      "other": 500000,
+      "income": 15000000,
+      "houseware": 700000
+    },
+    "totals": {
+      "expense": 13700000,
+      "income": 15000000,
+      "balance": 1300000
+    }
+  };
+
+
+
+  // 1️⃣ Tạo fake API kiểu bạn muốn
+  Map<String, dynamic> generateFakeApiData({int daysInMonth = 30}) {
+    final Random random = Random();
+    double runningCurrent = 0;
+    double runningPrevious = 0;
+
+    List<Map<String, dynamic>> currentMonth = [];
+    List<Map<String, dynamic>> previousMonth = [];
+
+    for (int day = 1; day <= daysInMonth; day++) {
+      // Sinh số tiền ngẫu nhiên và tích lũy
+      double currentAmount = random.nextInt(200000).toDouble();
+      runningCurrent += currentAmount;
+      currentMonth.add({"day": day, "total": runningCurrent});
+
+      double previousAmount = random.nextInt(150000).toDouble();
+      runningPrevious += previousAmount;
+      previousMonth.add({"day": day, "total": runningPrevious});
+    }
+
+    return {
+      "currentMonth": currentMonth,
+      "previousMonth": previousMonth,
+    };
+  }
+
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
-
+    selectedMonth = '${now.month.toString().padLeft(2, '0')}/${now.year}';
     // api để call đống tiền
     getApi();
+    // fake 
+
+    getDataChart();
+
+    Map<String, dynamic> fakeApiData = generateFakeApiData(daysInMonth: 30);
+    // Chỉ lấy tổng tiền (total) từ currentMonth / previousMonth
+    currentMonthTotals = (fakeApiData['currentMonth'] as List)
+        .map((e) => (e['total'] as num).toDouble())
+        .toList();
+
+    previousMonthTotals = (fakeApiData['previousMonth'] as List)
+        .map((e) => (e['total'] as num).toDouble())
+        .toList();
   }
 
   @override
@@ -67,14 +140,17 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                           : const Icon(Icons.visibility_off),
                     ),
                     const Spacer(),
-                    const Icon(Icons.notifications),
+                    IconButton(onPressed: (){
+                      showInstantNotification(); 
+                    }, icon: Icon(Icons.notifications),)
+                    
                   ],
                 ),
                 Row(
                   children: [
                     Text(
                       "Total balance",
-                      style: AppStyles.grayText15_400,
+                      style: AppStyles.grayText16_500.copyWith(fontSize: 14),
                     ),
                     Icon(Icons.question_mark_rounded, color: AppColors.grayText),
                   ],
@@ -97,10 +173,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                             style: AppStyles.titleText18_500,
                           ),
                           const Spacer(),
-                          Text(
-                            "See all",
-                            style: AppStyles.linkText16_500,
-                          ),
+                          
                         ],
                       ),
                       Container(
@@ -137,12 +210,24 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   children: [
                     Text(
                       "Report this month",
-                      style: AppStyles.grayText16_700,
+                      style: AppStyles.grayText16_500,
                     ),
                     const Spacer(),
-                    Text(
-                      "See reports",
-                      style: AppStyles.linkText16_500,
+                    InkWell(
+                      onTap: () {
+                        Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => ReportPage(month: selectedMonth, 
+                              transactionsMap: fakeTransactions, // truyền nguyên Map
+                              ),
+                            ),
+                          );
+                      },
+                      child: Text(
+                        "See reports",
+                        style: AppStyles.linkText16_500,
+                      ),
                     ),
                   ],
                 ),
@@ -166,11 +251,13 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                               children: [
                                 Text(
                                   "Total spent",
-                                  style: AppStyles.grayText15_400,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: AppStyles.grayText12_400.copyWith(fontSize: 14),
                                 ),
                                 Text(
                                   Common.formatNumber(_totalExpense.toString()),
-                                  style: AppStyles.redText16,
+                                  style: AppStyles.redText16.copyWith(fontSize: 12),
+                                  overflow: TextOverflow.ellipsis,
                                 ),
                               ],
                             ),
@@ -181,12 +268,13 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                               children: [
                                 Text(
                                   "Total income",
-                                  style: AppStyles.grayText15_400,
+                                  style: AppStyles.grayText12_400.copyWith(fontSize: 14),
                                   overflow: TextOverflow.ellipsis,
                                 ),
                                 Text(
                                   Common.formatNumber(_totalIncome.toString()),
-                                  style: AppStyles.blueText16_500,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: AppStyles.blueText16_500.copyWith(fontSize: 12),
                                 ),
                               ],
                             ),
@@ -194,91 +282,95 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                         ],
                       ),
                       SizedBox(
-                        height: 300,
+                        height: 310,
                         child: TabBarView(
                           controller: _tabController,
-                          children: const [
-                            Center(child: Text("Chart 1")),
+                          children: [
+                            
+                            Container(
+                              margin: EdgeInsets.only(top: 60, right: 10, bottom: 20),
+                              child: SpendingCompareChart(currentMonthTotals: currentMonthTotals, previousMonthTotals: previousMonthTotals,),
+                            ),
                             Center(child: Text("Chart 2")),
                           ],
                         ),
                       ),
                     ],
                   ),
-                ),
-          
-                // Top spending
-                Row(
-                  children: [
-                    Text(
-                      "Top spending",
-                      style: AppStyles.grayText16_700,
-                    ),
-                    const Spacer(),
-                    Text(
-                      "See details",
-                      style: AppStyles.linkText16_500,
-                    ),
-                  ],
                 ),
                 const SizedBox(height: 10),
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(15),
-                    color: Colors.white,
-                  ),
-                  child: Column(
-                    children: [
-                      TabBar(
-                        controller: _tabController,
-                        tabs: [
-                          Tab(
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  "Total spent",
-                                  style: AppStyles.grayText15_400,
-                                ),
-                                Text(
-                                  Common.formatNumber("3171000"),
-                                  style: AppStyles.redText16,
-                                ),
-                              ],
-                            ),
-                          ),
-                          Tab(
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  "Total income",
-                                  style: AppStyles.grayText15_400,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                Text(
-                                  "0",
-                                  style: AppStyles.blueText16_500,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                      SizedBox(
-                        height: 300,
-                        child: TabBarView(
-                          controller: _tabController,
-                          children: const [
-                            Center(child: Text("Chart 1")),
-                            Center(child: Text("Chart 2")),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+          
+                // Top spending
+                // Row(
+                //   children: [
+                //     Text(
+                //       "Top spending",
+                //       style: AppStyles.grayText16_700,
+                //     ),
+                //     const Spacer(),
+                //     Text(
+                //       "See details",
+                //       style: AppStyles.linkText16_500,
+                //     ),
+                //   ],
+                // ),
+                const SizedBox(height: 10),
+                // Container(
+                //   padding: const EdgeInsets.all(20),
+                //   decoration: BoxDecoration(
+                //     borderRadius: BorderRadius.circular(15),
+                //     color: Colors.white,
+                //   ),
+                //   child: Column(
+                //     children: [
+                //       TabBar(
+                //         controller: _tabController,
+                //         tabs: [
+                //           Tab(
+                //             child: Column(
+                //               mainAxisSize: MainAxisSize.min,
+                //               children: [
+                //                 Text(
+                //                   "Total spent",
+                //                   style: AppStyles.grayText15_400,
+                //                 ),
+                //                 Text(
+                //                   Common.formatNumber("3171000"),
+                //                   style: AppStyles.redText16,
+                //                 ),
+                //               ],
+                //             ),
+                //           ),
+                //           Tab(
+                //             child: Column(
+                //               mainAxisSize: MainAxisSize.min,
+                //               children: [
+                //                 Text(
+                //                   "Total income",
+                //                   style: AppStyles.grayText15_400,
+                //                   overflow: TextOverflow.ellipsis,
+                //                 ),
+                //                 Text(
+                //                   "0",
+                //                   style: AppStyles.blueText16_500,
+                //                 ),
+                //               ],
+                //             ),
+                //           ),
+                //         ],
+                //       ),
+                //       SizedBox(
+                //         height: 300,
+                //         child: TabBarView(
+                //           controller: _tabController,
+                //           children: [
+                            
+                //           ],
+                //         ),
+                //       ),
+                //     ],
+                //   ),
+                // ),
               ],
             ),
           ),
@@ -288,17 +380,237 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   }
   
   void getApi() {
-    ApiUtil.getInstance()!.get(url: "https://67297e9b6d5fa4901b6d568f.mockapi.io/api/test/home", onSuccess: (response){
-      var data = response.data[0];
-      
-      _balance = data["balance"];
-      _totalIncome = data['income'];
-      _totalExpense = data['expense'];
-      setState(() {
-        
-      });
-    }, onError: (error){
-      
-    });
+    ApiUtil.getInstance()!.get(
+      url: "https://67297e9b6d5fa4901b6d568f.mockapi.io/api/test/home",
+      onSuccess: (response) {
+        if (response.data != null && response.data is List && response.data.isNotEmpty) {
+          
+          // Lấy phần tử đầu tiên của list
+          // var data = response.data[0];
+
+          // report
+          var data = fakeTransactions;
+
+          // Hứng dữ liệu từ API, kiểm tra null
+          _balance = data['totals']?['balance'] ?? 0;
+          _totalIncome = data['totals']?['income'] ?? 0;
+          _totalExpense = data['totals']?['expense'] ?? 0;
+
+          if (!mounted) return;
+          setState(() {});
+        }
+      },
+      onError: (error) {
+        print("API error: $error");
+      },
+    );
   }
+  
+  void getDataChart() {
+    ApiUtil.getInstance()!.get(
+      url: "https://67297e9b6d5fa4901b6d568f.mockapi.io/api/test/home",
+      onSuccess: (response) {
+        if (response.data != null && response.data is List && response.data.isNotEmpty) {
+          
+          // Lấy phần tử đầu tiên của list
+          // var data = response.data[0];
+
+          // report
+          var data = fakeTransactions;
+
+          // Hứng dữ liệu từ API, kiểm tra null
+          _balance = data['totals']?['balance'] ?? 0;
+          _totalIncome = data['totals']?['income'] ?? 0;
+          _totalExpense = data['totals']?['expense'] ?? 0;
+
+          if (!mounted) return;
+          setState(() {});
+        }
+      },
+      onError: (error) {
+        print("API error: $error");
+      },
+    );
+  }
+
+  
+}
+
+
+class SpendingCompareChart extends StatelessWidget {
+  SpendingCompareChart({super.key, required this.currentMonthTotals, required this.previousMonthTotals});
+  
+  final List<double> currentMonthTotals;
+  final List<double> previousMonthTotals;
+
+  @override
+  Widget build(BuildContext context) {
+
+
+
+    final rawMax = [
+      ...currentMonthTotals,
+      ...previousMonthTotals,
+    ].reduce((a, b) => a > b ? a : b);
+
+    final maxY = (((rawMax + 999999) ~/ 1000000) * 1000000).toDouble();
+
+    final midY = maxY ~/ 2;
+    
+
+    return SizedBox(
+      height: 250,
+      child: LineChart(
+        LineChartData(
+          minY: 0,
+          maxY: maxY,
+          
+          lineTouchData: LineTouchData(
+            enabled: true,
+            touchTooltipData: LineTouchTooltipData(
+              fitInsideHorizontally: true,
+              tooltipPadding: const EdgeInsets.all(8),
+              getTooltipItems: (touchedSpots) {
+                return touchedSpots.map((spot) {
+                  final value = spot.y.toInt();
+                  final color = spot.bar.color ?? Colors.white; // giữ đúng màu line
+
+                  return LineTooltipItem(
+                    "$value đ",
+                    TextStyle(
+                      color: color, // ✅ giữ màu của line
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  );
+                }).toList();
+              },
+            ),
+            handleBuiltInTouches: true,
+          ),
+
+          titlesData: FlTitlesData(
+            bottomTitles: AxisTitles(
+              sideTitles: SideTitles(
+                showTitles: true,
+                reservedSize: 18,
+                getTitlesWidget: (value, meta) {
+                  // ✅ giá trị đầu (bên trái)
+                  if (value == meta.min) {
+                    return const Text("1");
+                  }
+                  // ✅ giá trị cuối (bên phải)
+                  if (value == meta.max) {
+                    return const Text("30");
+                  }
+                  return const SizedBox.shrink();
+                },
+              ),
+            ),
+            leftTitles: AxisTitles(
+              sideTitles: SideTitles(
+                showTitles: true,
+                interval: maxY / 2, // ép chia làm 0, mid, max
+                reservedSize: 45,
+                getTitlesWidget: (value, _) {
+                  if (value == 0) return const Text("0");
+                  if ((value - midY).abs() < 0.5) return Text("${midY ~/ 1000000}M");
+                  if ((value - maxY).abs() < 0.5) return Text("${(maxY ~/ 1000000)}M");
+                  return const SizedBox.shrink();
+                },
+              ),
+            ),
+            rightTitles: AxisTitles(
+              sideTitles: SideTitles(showTitles: false),
+            ),
+            topTitles: AxisTitles(
+              sideTitles: SideTitles(showTitles: false),
+            ),
+          ),
+          gridData: FlGridData(
+            drawVerticalLine: false,
+            drawHorizontalLine: false,  // giữ đường ngang
+
+            getDrawingHorizontalLine: (value) {
+              if (value == 0) {
+                return FlLine(
+                  color: Colors.black87,
+                  dashArray: [4, 0], // nét liền
+                  strokeWidth: 2,
+                );
+              }
+              return FlLine(
+                strokeWidth: 1,
+                dashArray: [4, 2], // nét đứt nhẹ
+                color: Colors.grey.withOpacity(0.3),
+              );
+            },
+          ),
+
+          extraLinesData: ExtraLinesData(
+            horizontalLines: [
+              // 🔥 Đường đáy (nét liền)
+              HorizontalLine(
+                y: 0,
+                color: Colors.black87,
+                strokeWidth: 2,
+                dashArray: [4, 0], // nét liền
+              ),
+
+              // 🔸 Đường giữa (nét đứt)
+              HorizontalLine(
+                y: midY.toDouble(),
+                color: Colors.grey.withOpacity(0.4),
+                strokeWidth: 1,
+                dashArray: [4, 2],
+              ),
+
+              // 🔸 Đường trên (nét đứt)
+              HorizontalLine(
+                y: maxY.toDouble(),
+                color: Colors.grey.withOpacity(0.4),
+                strokeWidth: 1,
+                dashArray: [4, 2],
+              ),
+            ],
+          ),
+
+          borderData: FlBorderData(show: false),
+          
+          lineBarsData: [
+            // tháng này
+            LineChartBarData(
+              spots: List.generate(
+                currentMonthTotals.length,
+                (i) => FlSpot(i.toDouble(), currentMonthTotals[i].toDouble()),
+              ),
+              isCurved: true,
+              color: Colors.red,
+              barWidth: 3,
+              dotData: FlDotData(show: false),
+            ),
+            // tháng trước
+            LineChartBarData(
+              spots: List.generate(
+                previousMonthTotals.length,
+                (i) => FlSpot(i.toDouble(), previousMonthTotals[i].toDouble()),
+              ),
+              isCurved: true,
+              color: Colors.grey,
+              barWidth: 3,
+              dotData: FlDotData(show: false),
+            ),
+          ],
+        ),
+        
+      ),
+    );
+  }
+}
+
+  class ChartData {
+  final int day;
+  final double total;
+
+  ChartData({required this.day, required this.total});
 }

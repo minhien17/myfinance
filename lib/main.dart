@@ -1,8 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:my_finance/notification/timezone.dart';
 import 'package:my_finance/pages/loading_page.dart';
+import 'package:permission_handler/permission_handler.dart';
 
-void main() {
-  runApp(const MyApp());
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await requestNotificationPermission();
+  await initializeNotifications();
+  await scheduleDailyMorningNotification();
+
+  runApp(MyApp());
 }
 
 class MyApp extends StatelessWidget {
@@ -22,4 +29,10 @@ class MyApp extends StatelessWidget {
     );
   }
 }
+
+Future<void> requestNotificationPermission() async {
+  final status = await Permission.notification.request();
+  print('Notification permission: $status');
+}
+
 

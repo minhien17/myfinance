@@ -37,7 +37,7 @@ class ApiUtil {
       ).timeout(const Duration(seconds: 10));
       print('--- GET Response ---');
       print('Status code: ${res.statusCode}');
-      print('Body: ${res.body}');
+      // print('Body: ${res.body}');
       var data = jsonDecode(res.body);
       if (res.statusCode >= 400) {
         // var r = ErrorResponse.from(data: data, statusCode: res.statusCode);
@@ -77,9 +77,10 @@ class ApiUtil {
       ).timeout(const Duration(seconds: 10));
       var data = jsonDecode(res.body);
       if (res.statusCode >= 400) {
-        var r = ErrorResponse.from(data: data, statusCode: res.statusCode);
-        var a = ErrorApi.from(response: r);
-        onError(a);
+        // var r = ErrorResponse.from(data: data, statusCode: res.statusCode);
+        // var a = ErrorApi.from(response: r);
+        final message = data['message'] ?? 'Lỗi không xác định';
+        onError(message); // chỉ truyền String
       } else {
         if (onSuccess != null) onSuccess(getBaseResponse2(res));
       }
@@ -115,9 +116,9 @@ class ApiUtil {
         },
       ).timeout(const Duration(seconds: 10));
 
-      print('--- Response ---');
+      print('--- Post Response ---');
       print('Status code: ${res.statusCode}');
-      print('Body: ${res.body}');
+      // print('Body: ${res.body}');
 
       var data = jsonDecode(res.body);
       if (res.statusCode >= 400) {
