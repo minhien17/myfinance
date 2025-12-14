@@ -41,6 +41,7 @@ class DeleteAccountPage extends StatelessWidget {
           },
         ),
         title: Text('Delete account'),
+        centerTitle: true,
       ),
       
       // 2. Body (Nội dung chính)

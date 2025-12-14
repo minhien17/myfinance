@@ -88,12 +88,12 @@ class _EditTransactionGroupPageState extends State<EditTransactionGroupPage> {
   }
 
   String formatDate(DateTime d) {
-    if (DateTime.now().day == d.day) return "Today";
+    if (DateTime.now().day == d.day) return "Hôm nay";
     if (DateTime.now().subtract(const Duration(days: 1)).day == d.day) {
-      return "Yesterday";
+      return "Hôm qua";
     }
     if (DateTime.now().add(const Duration(days: 1)).day == d.day) {
-      return "Tomorrow";
+      return "Ngày mai";
     }
     return "${d.day}/${d.month}/${d.year}";
   }
@@ -107,7 +107,7 @@ class _EditTransactionGroupPageState extends State<EditTransactionGroupPage> {
           icon: const Icon(Icons.close, color: Colors.black),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text('Edit Transaction'),
+        title: const Text('Sửa chi tiêu'),
       ),
       body: Container(
         
@@ -241,7 +241,7 @@ class _EditTransactionGroupPageState extends State<EditTransactionGroupPage> {
                         child: TextField(
                           controller: noteTextController,
                           decoration: const InputDecoration(
-                              hintText: 'Write note'),
+                              hintText: 'Ghi chú'),
                           style: const TextStyle(fontSize: 18),
                           onChanged: (value) {
                             setState(() {

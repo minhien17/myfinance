@@ -50,7 +50,6 @@ class _ReportPageState extends State<ReportPage> {
     listTransaction = entries.map((e) => TransactionModel.full(
       category: e.key,
       amount: e.value,
-      dateTime: DateTime.parse('2025-10-01'),
     )).toList();
 
 
@@ -61,8 +60,9 @@ class _ReportPageState extends State<ReportPage> {
   List<Widget> buildExpenseList(List<TransactionModel> lists, BuildContext context) {
   
   // 1️⃣ Map qua danh sách và tạo Widget
-  List<Widget> containers = lists.map((expense) {
-    
+  List<Widget> containers = lists.asMap().entries.map((entry) {
+    final index = entry.key;
+    final expense = entry.value;
     
     final Color amountColor = expense.category == "income" ? Colors.blue : Colors.red;
     return Column(
@@ -103,7 +103,7 @@ class _ReportPageState extends State<ReportPage> {
         ),
         // 💡 ĐƯỜNG KẺ DƯỚI (Divider)
         // Điều chỉnh màu sắc và độ dày cho tinh tế hơn
-        const Divider(
+        if (index != lists.length - 1) Divider(
           height: 0, // Đặt height = 0 để kiểm soát khoảng cách bằng padding
           thickness: 0.8, // Độ dày mỏng
           color: Colors.black12, // Màu xám nhạt
@@ -163,7 +163,7 @@ class _ReportPageState extends State<ReportPage> {
                           "${Common.formatNumber(_totalIncome.toString())} đ",
                           style: const TextStyle(
                               fontSize: 18,
-                              fontWeight: FontWeight.w600,
+                              fontWeight: FontWeight.w400,
                               color: Colors.blue),
                         ),
                       ],
@@ -175,7 +175,7 @@ class _ReportPageState extends State<ReportPage> {
                         Text(
                           "${Common.formatNumber(_totalExpense.toString())} đ",
                           style: const TextStyle(
-                              fontWeight: FontWeight.w600,
+                              fontWeight: FontWeight.w400,
                               fontSize: 18,
                               color: Colors.red),
                         ),
@@ -334,7 +334,7 @@ List<TopExpenseModel> aggregateAndGetTop5Expenses(Map<String, dynamic> transacti
     return TopExpenseModel(
       category: top5[index].key,
       amount: top5[index].value,
-      color: defaultColors[index % defaultColors.length], // tất cả là màu expense
+      color: defaultColors[index % defaultColors.length], 
     );
   });
 }

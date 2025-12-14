@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:bootstrap_icons/bootstrap_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:my_finance/api/api_util.dart';
 import 'package:my_finance/common/flutter_toast.dart';
@@ -243,6 +244,51 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
           widget.name,
           style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
+        actions: [
+  PopupMenuButton<String>(
+    // 1. Giữ nguyên icon cũ của bạn
+    icon: const Icon(Icons.more_vert), 
+    style: ElevatedButton.styleFrom(
+      disabledBackgroundColor: AppColors.background,
+    ),
+    // 2. Xử lý logic khi người dùng chọn 1 trong 2 mục
+    onSelected: (String value) {
+      if (value == 'edit_name') {
+        // Code mở popup/màn hình chỉnh sửa tên ở đây
+        print("Đã chọn Chỉnh sửa tên");
+      } else if (value == 'add_member') {
+        // Code mở màn hình thêm người ở đây
+        print("Đã chọn Thêm người");
+      }
+    },
+    
+    // 3. Định nghĩa danh sách các lựa chọn trong menu
+    itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+      // Lựa chọn 1: Chỉnh sửa tên
+      const PopupMenuItem<String>(
+        value: 'edit_name',
+        child: Row(
+          children: [
+            Icon(Icons.edit, color: AppColors.blackIcon), // Icon minh họa
+            SizedBox(width: 12),
+            Text('Đổi tên nhóm'),
+          ],
+        ),
+      ),
+      // Lựa chọn 2: Thêm người
+      const PopupMenuItem<String>(
+        value: 'add_member',
+        child: Row(
+          children: [
+            Icon(Icons.person_add, color: AppColors.blackIcon), // Icon minh họa
+            SizedBox(width: 12),
+            Text('Thêm thành viên'),
+          ],
+        ),
+      ),
+    ],
+  ),
+],
         centerTitle: true, // 👈 căn giữa cho title
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
@@ -318,10 +364,10 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceAround,
                       children: [
-                        Text("You", style: TextStyle(
+                        Text("Bạn", style: TextStyle(
                                 fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.title)),
                         
-                        Text("Group", style: TextStyle(
+                        Text("Nhóm", style: TextStyle(
                                 fontSize: 18, fontWeight: FontWeight.bold,)),
                         
                       ],
@@ -359,7 +405,7 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
                             );
                           },
                           child: const Text(
-                            "Add Expense",
+                            "Thêm chi tiêu",
                             style: TextStyle(fontSize: 16),
                           ),
                         ),
@@ -385,7 +431,7 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
                             );
                           },
                           child: const Text(
-                            "View Detail",
+                            "Xem chi tiết",
                             style: TextStyle(fontSize: 16),
                           ),
                         ),

@@ -55,12 +55,12 @@ class _AddExpensePageState extends State<AddExpensePage> {
   }
 
   String formatDate(DateTime d) {
-    if (DateTime.now().day == d.day) return "Today";
+    if (DateTime.now().day == d.day) return "Hôm nay";
     if (DateTime.now().subtract(const Duration(days: 1)).day == d.day) {
-      return "Yesterday";
+      return "Hôm qua";
     }
     if (DateTime.now().add(const Duration(days: 1)).day == d.day) {
-      return "Tomorrow";
+      return "Ngày mai";
     }
     return "${d.day}/${d.month}/${d.year}";
   }
@@ -74,7 +74,7 @@ class _AddExpensePageState extends State<AddExpensePage> {
           icon: const Icon(Icons.close, color: Colors.black),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text('Add Transaction'),
+        title: const Text('Thêm chi tiêu'),
       ),
       body: Container(
         
@@ -172,7 +172,7 @@ class _AddExpensePageState extends State<AddExpensePage> {
                       Expanded(
                         child: TextField(
                           decoration: const InputDecoration(
-                              hintText: 'Write note'),
+                              hintText: 'Chi chú'),
                           style: const TextStyle(fontSize: 18),
                           onChanged: (value) {
                             setState(() {
@@ -231,7 +231,7 @@ class _AddExpensePageState extends State<AddExpensePage> {
                     
                   ),
                   child: Text(
-                    'Save',
+                    'Lưu',
                     style: TextStyle(
                       color: amount == 0 ? null : Colors.white,
                       fontSize: 18

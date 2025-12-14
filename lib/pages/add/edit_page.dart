@@ -84,12 +84,12 @@ class _EditExpensePageState extends State<EditExpensePage> {
   }
 
   String formatDate(DateTime d) {
-    if (DateTime.now().day == d.day) return "Today";
+    if (DateTime.now().day == d.day) return "Hôm nay";
     if (DateTime.now().subtract(const Duration(days: 1)).day == d.day) {
-      return "Yesterday";
+      return "Hôm qua";
     }
     if (DateTime.now().add(const Duration(days: 1)).day == d.day) {
-      return "Tomorrow";
+      return "Ngày mai";
     }
     return "${d.day}/${d.month}/${d.year}";
   }
@@ -103,7 +103,7 @@ class _EditExpensePageState extends State<EditExpensePage> {
           icon: const Icon(Icons.close, color: Colors.black),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text('Edit Transaction'),
+        title: const Text('Sửa chi tiêu'),
         actions: [
           IconButton(
             icon: const Icon(Icons.delete, color: Colors.red),
@@ -112,8 +112,8 @@ class _EditExpensePageState extends State<EditExpensePage> {
               final confirm = await showDialog(
                 context: context,
                 builder: (_) => AlertDialog(
-                  title: const Text("Delete Transaction"),
-                  content: const Text("Are you sure you want to delete this transaction?"),
+                  title: const Text("Xóa chi tiêu"),
+                  content: const Text("Bạn có muốn xóa chi tiêu này không?"),
                   actions: [
                     TextButton(
                       onPressed: () => Navigator.pop(context, false),
@@ -125,7 +125,7 @@ class _EditExpensePageState extends State<EditExpensePage> {
                         await deleteExpense(id: widget.id, context: context);
                         Navigator.pop(context); // quay lại màn hình trước
                       },
-                      child: const Text("Delete", style: TextStyle(color: Colors.red)),
+                      child: const Text("Xóa", style: TextStyle(color: Colors.red)),
                     ),
                   ],
                 ),
@@ -235,7 +235,7 @@ class _EditExpensePageState extends State<EditExpensePage> {
                         child: TextField(
                           controller: noteTextController,
                           decoration: const InputDecoration(
-                              hintText: 'Write note'),
+                              hintText: 'Ghi chú'),
                           style: const TextStyle(fontSize: 18),
                           onChanged: (value) {
                             setState(() {
@@ -294,7 +294,7 @@ class _EditExpensePageState extends State<EditExpensePage> {
                     
                   ),
                   child: Text(
-                    'Save',
+                    'Lưu',
                     style: TextStyle(
                       color: amount == 0 ? null : Colors.white,
                       fontSize: 18
@@ -340,7 +340,7 @@ Future<void> addExpense({
       // hideLoading();
     },
     onError: (error) {
-      print("❌ Add expense error: $error");
+      print("❌ Lỗi thêm chi tiêu: $error");
       completer.completeError(error); 
       // hideLoading();
     },

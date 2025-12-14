@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:my_finance/models/group_model.dart';
 import 'package:my_finance/pages/share/child_page/transation_group_page.dart';
 import 'package:my_finance/pages/share/create_group_page.dart';
+import 'package:my_finance/pages/share/join_group_page.dart';
 import 'package:my_finance/res/app_colors.dart';
 import 'package:my_finance/res/app_styles.dart';
 
@@ -63,7 +64,7 @@ void initState() {
       backgroundColor: AppColors.background, // Nền trắng tương đồng
       appBar: AppBar(
         title: const Text(
-          'Share money',
+          'Danh sách nhóm',
           // style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
         ),
         backgroundColor: AppColors.background,
@@ -75,10 +76,10 @@ void initState() {
               onTap: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) => CreateGroupPage()),
+                MaterialPageRoute(builder: (context) => JoinGroupScreen()),
               );
             },
-              child: Text("Join group", 
+              child: Text("Tham gia nhóm", 
               style: AppStyles.linkText16_500,
               ),
             ),
@@ -189,7 +190,7 @@ void initState() {
         ),
 
       child: Text(
-        'Add group',
+        'Thêm nhóm',
         style: AppStyles.titleText16_500
       ),
     );

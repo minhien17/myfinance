@@ -66,12 +66,12 @@ class _AddTransactionGroupPageState extends State<AddTransactionGroupPage> {
   }
 
   String formatDate(DateTime d) {
-    if (DateTime.now().day == d.day) return "Today";
+    if (DateTime.now().day == d.day) return "Hôm nay";
     if (DateTime.now().subtract(const Duration(days: 1)).day == d.day) {
-      return "Yesterday";
+      return "Hôm nay";
     }
     if (DateTime.now().add(const Duration(days: 1)).day == d.day) {
-      return "Tomorrow";
+      return "Ngày mai";
     }
     return "${d.day}/${d.month}/${d.year}";
   }
@@ -85,7 +85,7 @@ class _AddTransactionGroupPageState extends State<AddTransactionGroupPage> {
           icon: const Icon(Icons.close, color: Colors.black),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text('Add Transaction'),
+        title: const Text('Thêm chi tiêu'),
       ),
       body: Container(
         
@@ -217,7 +217,7 @@ class _AddTransactionGroupPageState extends State<AddTransactionGroupPage> {
                       Expanded(
                         child: TextField(
                           decoration: const InputDecoration(
-                              hintText: 'Write note'),
+                              hintText: 'Ghi chú'),
                           style: const TextStyle(fontSize: 18),
                           onChanged: (value) {
                             setState(() {

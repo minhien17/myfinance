@@ -9,7 +9,7 @@ List<ItemIcon> ListIcon = [
         width: 30,
       ),
       title: 'home',
-      description: "Rental"),
+      description: "Thuê nhà"),
   ItemIcon(
       img: Image.asset(
         'assets/icons/food.png',
@@ -17,7 +17,7 @@ List<ItemIcon> ListIcon = [
         width: 30,
       ),
       title: 'food',
-      description: "Food & Drink"),
+      description: "Ăn uống"),
   ItemIcon(
       img: Image.asset(
         'assets/icons/donation.png',
@@ -25,7 +25,7 @@ List<ItemIcon> ListIcon = [
         width: 30,
       ),
       title: 'donation',
-      description: "Donation & Gift"),
+      description: "Quyên góp"),
   ItemIcon(
       img: Image.asset(
         'assets/icons/education.png',
@@ -33,7 +33,7 @@ List<ItemIcon> ListIcon = [
         width: 30,
       ),
       title: 'education',
-      description: "Education"),
+      description: "Giáo dục"),
   ItemIcon(
       img: Image.asset(
         'assets/icons/entertain.png',
@@ -41,7 +41,7 @@ List<ItemIcon> ListIcon = [
         width: 30,
       ),
       title: 'entertainment',
-      description: "Entertainment"),
+      description: "Vui chơi"),
   ItemIcon(
       img: Image.asset(
         'assets/icons/family.png',
@@ -49,7 +49,7 @@ List<ItemIcon> ListIcon = [
         width: 30,
       ),
       title: 'family',
-      description: "Family & Love"),
+      description: "Gia đình"),
   ItemIcon(
       img: Image.asset(
         'assets/icons/houseware.png',
@@ -57,7 +57,7 @@ List<ItemIcon> ListIcon = [
         width: 30,
       ),
       title: 'houseware',
-      description: "Houseware"),
+      description: "Đồ gia dụng"),
   ItemIcon(
       img: Image.asset(
         'assets/icons/transportation.png',
@@ -65,7 +65,7 @@ List<ItemIcon> ListIcon = [
         width: 30,
       ),
       title: 'transportation',
-      description: "Transportation"),
+      description: "Di chuyển"),
   ItemIcon(
       img: Image.asset(
         'assets/icons/other.png',
@@ -73,7 +73,7 @@ List<ItemIcon> ListIcon = [
         width: 30,
       ),
       title: 'other',
-      description: "Other Expense"),
+      description: "Chi phí khác"),
   ItemIcon(
       img: Image.asset(
         'assets/icons/ic_launcher.png',
@@ -81,7 +81,7 @@ List<ItemIcon> ListIcon = [
         width: 30,
       ),
       title: 'income',
-      description: "Income"),
+      description: "Thu nhập"),
 ];
 
 // trả về description theo title
@@ -102,7 +102,7 @@ List<ItemIcon> ListIconGroup = [
         width: 30,
       ),
       title: 'home',
-      description: "Rental"),
+      description: "Thuê nhà"),
   ItemIcon(
       img: Image.asset(
         'assets/icons/food.png',
@@ -110,7 +110,7 @@ List<ItemIcon> ListIconGroup = [
         width: 30,
       ),
       title: 'food',
-      description: "Food & Drink"),
+      description: "Ăn uống"),
   ItemIcon(
       img: Image.asset(
         'assets/icons/houseware.png',
@@ -118,7 +118,7 @@ List<ItemIcon> ListIconGroup = [
         width: 30,
       ),
       title: 'houseware',
-      description: "Houseware"),
+      description: "Đồ gia dụng"),
   ItemIcon(
       img: Image.asset(
         'assets/icons/entertain.png',
@@ -126,7 +126,7 @@ List<ItemIcon> ListIconGroup = [
         width: 30,
       ),
       title: 'entertainment',
-      description: "Entertainment"),
+      description: "Vui chơi"),
   
   ItemIcon(
       img: Image.asset(
@@ -135,5 +135,5 @@ List<ItemIcon> ListIconGroup = [
         width: 30,
       ),
       title: 'other',
-      description: "Other Expense"),
+      description: "Chi phí khác"),
 ];

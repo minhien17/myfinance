@@ -50,7 +50,8 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
             Navigator.pop(context);
           },
         ),
-        title: Text('Change password'),
+        title: Text('Đổi mật khẩu'),
+        centerTitle: true,
         elevation: 0, // Bỏ bóng dưới AppBar
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
@@ -76,7 +77,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
             
             // Trường "Old password"
             _buildPasswordField(
-              labelText: 'Old password',
+              labelText: 'Mật khẩu cũ',
               isVisible: _isOldPasswordVisible,
               toggleVisibility: (bool value) {
                 setState(() {
@@ -89,7 +90,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
             
             // Trường "New password"
             _buildPasswordField(
-              labelText: 'New password',
+              labelText: 'Mật khẩu mới',
               isVisible: _isNewPasswordVisible,
               toggleVisibility: (bool value) {
                 setState(() {
@@ -116,7 +117,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                   ),
                 ),
                 child: Text(
-                  'CHANGE PASSWORD',
+                  'ĐỔI MẬT KHẨU',
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 16,
@@ -136,7 +137,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                   print('Quên mật khẩu...');
                 },
                 child: Text(
-                  'FORGOT PASSWORD?',
+                  'QUÊN MẬT KHẨU?',
                   style: TextStyle(
                     color: Colors.green, // Màu chữ xanh lá
                     fontSize: 14,

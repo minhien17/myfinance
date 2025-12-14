@@ -38,7 +38,7 @@ class _AccountPageState extends State<AccountPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text("Account"),
+        title: Text("Tài khoản"),
       ),
       body: SingleChildScrollView(
         child: Column(
@@ -84,7 +84,7 @@ class _AccountPageState extends State<AccountPage> {
            ),
            ListTile(
             leading: Icon(BootstrapIcons.table), // Biểu tượng dấu hỏi (?)
-            title: Text('Export Google Sheet'),
+            title: Text('Xuất Google Sheet'),
             trailing: Icon(Icons.chevron_right), // Biểu tượng mũi tên >
             onTap: () {
               // Chuyển sang SupportPage
@@ -97,7 +97,7 @@ class _AccountPageState extends State<AccountPage> {
           // 1. Container cho Support
           ListTile(
             leading: Icon(Icons.help_outline), // Biểu tượng dấu hỏi (?)
-            title: Text('Support'),
+            title: Text('Hỗ trợ'),
             trailing: Icon(Icons.chevron_right), // Biểu tượng mũi tên >
             onTap: () {
               // Chuyển sang SupportPage
@@ -112,7 +112,7 @@ class _AccountPageState extends State<AccountPage> {
           // 2. Container cho Settings
           ListTile(
             leading: Icon(BootstrapIcons.gear), // Biểu tượng bánh răng
-            title: Text('Settings'),
+            title: Text('Cài đặt'),
             trailing: Icon(Icons.chevron_right), // Biểu tượng mũi tên >
             onTap: () {
               // Chuyển sang SettingsPage
@@ -126,7 +126,7 @@ class _AccountPageState extends State<AccountPage> {
           // 3. Container cho About
           ListTile(
             leading: Icon(Icons.info_outline), // Biểu tượng chữ i (info)
-            title: Text('About'),
+            title: Text('Về chúng tôi'),
             trailing: Icon(Icons.chevron_right), // Biểu tượng mũi tên >
             onTap: () {
               // Chuyển sang AboutPage

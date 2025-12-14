@@ -89,11 +89,12 @@ class _MainPageState extends State<MainPage> {
         items: [
           BottomNavigationBarItem(
             icon: Icon(BootstrapIcons.house_door),
-            label: "Home",
+            label: "Trang chủ",
+            
           ),
           BottomNavigationBarItem(
             icon: Icon(BootstrapIcons.wallet2),
-            label: "Transaction",
+            label: "Chi tiêu",
           ),
           BottomNavigationBarItem(
             icon: Icon(
@@ -101,15 +102,15 @@ class _MainPageState extends State<MainPage> {
               color: Colors.green,
               size: 30,
             ),
-            label: "Add",
+            label: "Thêm",
           ),
           BottomNavigationBarItem(
             icon: Icon(BootstrapIcons.people),
-            label: "Share",
+            label: "Chia nhóm",
           ),
           BottomNavigationBarItem(
             icon: Icon(BootstrapIcons.person),
-            label: "Account",
+            label: "Tài khoản",
           ),
         ],
         selectedItemColor: AppColors.title,

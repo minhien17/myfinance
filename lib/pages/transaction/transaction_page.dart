@@ -38,7 +38,7 @@ class _TransactionPageState extends State<TransactionPage> {
       "education": 1200000,
       "entertainment": 800000,
       "family": 1600000,
-      "rental": 4500000,
+      "home": 4500000,
       "transportation": 900000,
       "other": 500000,
       "income": 15000000,
@@ -283,7 +283,7 @@ class _TransactionPageState extends State<TransactionPage> {
                         width: width / 3,
                         child: Column(
                           children: [
-                            const Text("Balance",
+                            const Text("Số dư",
                                 style: TextStyle(color: Colors.grey)),
                             const SizedBox(height: 5),
                             Text(
@@ -378,7 +378,7 @@ class _TransactionPageState extends State<TransactionPage> {
                   children: [
                     Row(
                       children: [
-                        const Text("Inflow", style: TextStyle(
+                        const Text("Thu nhập", style: TextStyle(
                                 fontSize: 16)),
                         const Spacer(),
                         Text(Common.formatNumber(_totalIncome.toString()),
@@ -388,7 +388,7 @@ class _TransactionPageState extends State<TransactionPage> {
                     const SizedBox(height: 5),
                     Row(
                       children: [
-                        const Text("Outflow",
+                        const Text("Đã chi",
                             style: TextStyle( fontSize: 16)),
                         const Spacer(),
                         Text(Common.formatNumber(_totalExpense.toString()),
@@ -431,7 +431,7 @@ class _TransactionPageState extends State<TransactionPage> {
                             ),
                           );
                       },
-                      child: Text("View report for this period", style: AppStyles.titleText16_500.copyWith(fontSize: 14),),
+                      child: Text("Xem thống kê tháng này", style: AppStyles.titleText16_500.copyWith(fontSize: 14),),
                     ),
                   ],
                 ),

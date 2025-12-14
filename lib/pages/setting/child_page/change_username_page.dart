@@ -44,7 +44,8 @@ class _ChangeUsernamePageState extends State<ChangeUsernamePage> {
             Navigator.pop(context);
           },
         ),
-        title: const Text('Change username'),
+        title: const Text('Đổi tên người dùng'),
+        centerTitle: true,
         elevation: 0,
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
@@ -58,7 +59,7 @@ class _ChangeUsernamePageState extends State<ChangeUsernamePage> {
           children: [
             // Hiển thị username hiện tại (read-only)
             Text(
-              'Current username: ${widget.currentUsername}',
+              'Tên hiện tại: ${widget.currentUsername}',
               style: const TextStyle(
                 fontSize: 16,
                 color: Colors.grey,
@@ -71,7 +72,7 @@ class _ChangeUsernamePageState extends State<ChangeUsernamePage> {
             TextFormField(
               controller: _newUsernameController,
               decoration: const InputDecoration(
-                labelText: 'New username',
+                labelText: 'Tên mới',
                 border: UnderlineInputBorder(),
               ),
             ),
@@ -91,7 +92,7 @@ class _ChangeUsernamePageState extends State<ChangeUsernamePage> {
                   ),
                 ),
                 child: const Text(
-                  'CHANGE USERNAME',
+                  'ĐỔI TÊN NGƯỜI DÙNG',
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 16,

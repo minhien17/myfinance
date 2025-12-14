@@ -43,7 +43,8 @@ class _MyAccountPageState extends State<MyAccountPage> {
     return Scaffold(
       appBar: AppBar(
         
-        title: Text('My Account'),
+        title: Text('Tài khoản của tôi'),
+        centerTitle: true,
       ),
       body: Container(
         width: double.infinity,
@@ -68,7 +69,7 @@ class _MyAccountPageState extends State<MyAccountPage> {
            // 1. Change name
           ListTile(
             leading: Icon(BootstrapIcons.type), // Biểu tượng bánh răng
-            title: Text('Change username'),
+            title: Text('Đổi tên người dùng'),
             onTap: () {
               // Chuyển sang SettingsPage
               Navigator.push(
@@ -82,7 +83,7 @@ class _MyAccountPageState extends State<MyAccountPage> {
           // 2. Container cho Settings
           ListTile(
             leading: Icon(BootstrapIcons.key), // Biểu tượng bánh răng
-            title: Text('Change password'),
+            title: Text('Đổi mật khẩu'),
             onTap: () {
               // Chuyển sang SettingsPage
               Navigator.push(
@@ -95,7 +96,7 @@ class _MyAccountPageState extends State<MyAccountPage> {
           // 3. Container cho About
           ListTile(
             leading: Icon(BootstrapIcons.trash), // Biểu tượng chữ i (info)
-            title: Text('Delete account'),
+            title: Text('Xóa tài khoản'),
             onTap: () {
               // Chuyển sang AboutPage
               Navigator.push(
@@ -108,7 +109,7 @@ class _MyAccountPageState extends State<MyAccountPage> {
       ),
       ElevatedButton(onPressed: (){
          _logout(context);
-      }, child: Text("Sign out"))
+      }, child: Text("Đăng xuất"))
           ],
         ),
       ),
