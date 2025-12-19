@@ -31,19 +31,19 @@ class _MyFinanceOnboardingState extends State<MyFinanceOnboarding> {
       _buildImagePage(
         context,
         imagePath: _imagePaths[0],
-        title: 'The easiest way to track your money and plan your future'
+        title: 'Kiểm soát tài chính toàn diện'
       ),
       // Trang 2: Sử dụng ảnh thứ hai
       _buildImagePage(
         context,
         imagePath: _imagePaths[1],
-        title: 'Manage all your money in one place'
+        title: 'Tối ưu chi tiêu và Tiết kiệm', // Tiêu đề từ ảnh thứ hai
       ),
       // Trang 3: Sử dụng ảnh thứ ba (hoặc ảnh bảo mật của bạn nếu bạn muốn dùng ảnh riêng cho nó)
       _buildImagePage(
         context,
         imagePath: _imagePaths[2],
-        title: 'A simple way to take care of your finances', // Tiêu đề từ ảnh bảo mật
+        title: 'Bảo mật dữ liệu tuyệt đối', // Tiêu đề từ ảnh bảo mật
       ),
     ];
   }
@@ -147,7 +147,7 @@ class _MyFinanceOnboardingState extends State<MyFinanceOnboarding> {
                       elevation: 0, // Bỏ bóng
                     ),
                     child: Text(
-                      'SIGN UP FOR FREE',
+                      'ĐĂNG KÝ MIỄN PHÍ',
                       style: TextStyle(
                         color: Colors.white,
                         fontSize: 16,
@@ -168,7 +168,7 @@ class _MyFinanceOnboardingState extends State<MyFinanceOnboarding> {
               );
                   },
                   child: Text(
-                    'SIGN IN',
+                    'ĐĂNG NHẬP',
                     style: TextStyle(
                       color: Colors.green,
                       fontSize: 16,

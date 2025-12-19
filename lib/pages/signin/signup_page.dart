@@ -29,19 +29,19 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
   // Kiểm tra cơ bản
   if (username.isEmpty || email.isEmpty || password.isEmpty) {
-    toastInfo(msg: "Please fill in all fields");
+    toastInfo(msg: "Vui lòng điền đầy đủ thông tin");
     return;
   }
 
    if (password.length < 6){
-    toastInfo(msg: "Password must have at least 6 characters");
+    toastInfo(msg: "Mật khẩu phải có ít nhất 6 ký tự");
     return;
   }
 
   // Kiểm tra định dạng email
   final emailRegex = RegExp(r'^[^@]+@[^@]+\.[^@]+$');
   if (!emailRegex.hasMatch(email)) {
-    toastInfo(msg: "Invalid email format");
+    toastInfo(msg: "Định dạng email không hợp lệ");
     
     return;
   }
@@ -54,11 +54,11 @@ class _SignUpScreenState extends State<SignUpScreen> {
       "email":email,
       "password":password
     },
-    url: "http://localhost:3003/auth/register", // fixx
+    url: "http://localhost:3002/auth/register", // fixx
     onSuccess: (response) {
       hideLoading();
       var res = response.data;
-
+      
       setState(() {
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (_) => SignInScreen()),
@@ -104,16 +104,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: <Widget>[
-            // Mô phỏng Icon/Logo bên trái
-            // Trong thực tế, bạn sẽ dùng Image.asset(imageAsset)
-            // Tạm dùng Text để mô phỏng vị trí logo
-            Text(
-              imageAsset, 
-              style: TextStyle(
-                fontSize: 20, 
-                color: (text.contains('GOOGLE')) ? Colors.red : Colors.black,
-              )
-            ), 
+            
+            Image.asset(imageAsset, height: 24, width: 24),
             SizedBox(width: 8),
             Text(
               text,
@@ -141,7 +133,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
             Navigator.pop(context);
           },
         ),
-        title: Text('Sign up'),
+        title: Text('Đăng ký'),
         elevation: 0,
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
@@ -157,8 +149,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
             // Nút 1: Connect with Google
             _buildSocialButton(
-              text: 'CONNECT WITH GOOGLE',
-              imageAsset: 'G', // Mô phỏng logo Google
+              text: 'LIÊN KẾT VỚI GOOGLE',
+              imageAsset: 'assets/icons/gg_icon.png', // Mô phỏng logo Google
               textColor: Colors.red, // Chữ màu đỏ
               borderColor: Colors.red, // Viền màu đỏ
               onPressed: () {
@@ -170,8 +162,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
             // Nút 2: Sign in with Apple
             _buildSocialButton(
-              text: 'SIGN IN WITH APPLE',
-              imageAsset: '', // Mô phỏng logo Apple
+              text: 'LIÊN KẾT VỚI APPLE',
+              imageAsset: 'assets/icons/apple_icon.png', // Mô phỏng logo Apple
               textColor: Colors.black, // Chữ màu đen
               borderColor: Colors.black, // Viền màu đen
               onPressed: () {
@@ -183,7 +175,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
             Padding(
               padding: const EdgeInsets.only(top: 8.0),
               child: Text(
-                "We'll never post without your permission.",
+                "Chúng tôi sẽ bảo mật dữ liệu của bạn.",
                 style: TextStyle(
                   fontSize: 12,
                   color: Colors.grey[600],
@@ -197,7 +189,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 8.0),
               child: Text(
-                'OR',
+                'HOẶC',
                 style: TextStyle(color: Colors.grey),
               ),
             ),
@@ -209,7 +201,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
               controller: _usernameController,
               keyboardType: TextInputType.name,
               decoration: InputDecoration(
-                labelText: 'Username',
+                labelText: 'Tên hiển thị',
                 border: UnderlineInputBorder(),
               ),
             ),
@@ -233,7 +225,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
               controller: _passwordController,
               obscureText: !_isPasswordVisible,
               decoration: InputDecoration(
-                labelText: 'Password',
+                labelText: 'Mật khẩu',
                 border: UnderlineInputBorder(),
                 // Biểu tượng mắt
                 suffixIcon: IconButton(
@@ -267,7 +259,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   ),
                 ),
                 child: Text(
-                  'SIGN UP',
+                  'ĐĂNG KÝ',
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 16,
@@ -289,7 +281,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
               );
                 },
                 child: Text(
-                  'Sign in',
+                  'Đăng nhập',
                   style: TextStyle(
                     color: Colors.green, // Màu chữ xanh lá
                     fontSize: 14,

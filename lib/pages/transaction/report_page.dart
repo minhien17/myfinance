@@ -124,7 +124,7 @@ class _ReportPageState extends State<ReportPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          "Report for ${widget.month}",
+          "Chi tiết tháng ${widget.month}",
           style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
         ),
         centerTitle: true,
@@ -157,7 +157,7 @@ class _ReportPageState extends State<ReportPage> {
                   children: [
                     Column(
                       children: [
-                        const Text("Income",
+                        const Text("Thu nhập",
                             style: TextStyle(fontSize: 16, color: Colors.grey)),
                         Text(
                           "${Common.formatNumber(_totalIncome.toString())} đ",
@@ -170,7 +170,7 @@ class _ReportPageState extends State<ReportPage> {
                     ),
                     Column(
                       children: [
-                        const Text("Expense",
+                        const Text("Chi tiêu",
                             style: TextStyle(fontSize: 16, color: Colors.grey)),
                         Text(
                           "${Common.formatNumber(_totalExpense.toString())} đ",
@@ -206,7 +206,7 @@ class _ReportPageState extends State<ReportPage> {
                 child: Column(
                   children: [
                     const Text(
-                      "Top 5 Expenses",
+                      "Chi tiêu hàng đầu",
                       style:
                           TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                     ),

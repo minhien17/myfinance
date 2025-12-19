@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:my_finance/api/api_util.dart';
 import 'package:my_finance/common/flutter_toast.dart';
 import 'package:my_finance/common/loading_dialog.dart';
+import 'package:my_finance/res/app_colors.dart';
 import 'package:my_finance/shared_preference.dart';
 
 class CreateGroupPage extends StatefulWidget {
@@ -158,12 +159,13 @@ class _CreateGroupPageState extends State<CreateGroupPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text(
-          'Create group',
-          style: TextStyle(fontWeight: FontWeight.bold),
+          'Tạo nhóm mới',
+          // style: TextStyle(fontWeight: FontWeight.bold),
         ),
+        centerTitle: true,
         backgroundColor: Colors.white,
         elevation: 0,
         leading: IconButton(
@@ -172,65 +174,92 @@ class _CreateGroupPageState extends State<CreateGroupPage> {
         ),
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // 1. Tên nhóm
-            _buildInfoRow('Name:', TextField(
-              controller: _groupNameController,
-              decoration: const InputDecoration(
-                hintText: 'Name of group',
-                border: InputBorder.none,
+        padding: const EdgeInsets.all(16),
+        
+        child: Container(
+          padding: const EdgeInsets.only(left:10, right: 10, top: 20, bottom: 20),
+          decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(10),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Colors.black12,
+                    offset: Offset(0, 2),
+                    blurRadius: 4,
+                  ),
+                ],
               ),
-              style: const TextStyle( fontWeight: FontWeight.bold, fontSize: 16),
-            )),
-            const SizedBox(height: 15),
-
-            // 2. Số lượng thành viên (Dùng Dropdown cho dễ chọn)
-            _buildInfoRow('Num of member:', _buildMemberCountSelector()),
-            const SizedBox(height: 25),
-
-            // tên mình
-                  Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              SizedBox(
-                width: 120,
-                child: Text(
-                  "You",
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              // 1. Tên nhóm
+              _buildInfoRow('Tên nhóm', TextField(
+                controller: _groupNameController,
+                decoration: const InputDecoration(
+                  hintText: 'Điền tên',
+                  hintStyle: TextStyle(color: Colors.grey, fontWeight: FontWeight.w300), // Màu mờ cho chữ "Điền tên"
+                  border: InputBorder.none,
                 ),
-              ),
-              Expanded(
-                child:Container( // Bọc TextField trong Container màu xám
-                        height: 43,
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-                        decoration: BoxDecoration(
-                          color: Colors.grey[200],
-                          borderRadius: BorderRadius.circular(5),
+                style: const TextStyle( fontWeight: FontWeight.bold, fontSize: 16),
+              )),
+              const SizedBox(height: 15),
+          
+              // 2. Số lượng thành viên (Dùng Dropdown cho dễ chọn)
+              _buildInfoRow('Số lượng', _buildMemberCountSelector()),
+              const SizedBox(height: 25),
+          
+              // tên mình
+                    Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                SizedBox(
+                  width: 120,
+                  child: Text(
+                    "Tên của bạn",
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                ),
+                Expanded(
+                  child: Container(
+                    height: 43,
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[200],
+                      borderRadius: BorderRadius.circular(5),
+                    ),
+                    child: TextField(
+                      controller: TextEditingController(text: username),
+                      decoration: const InputDecoration(
+                        border: InputBorder.none,
+                        contentPadding: EdgeInsets.symmetric(
+                          vertical: 12, // 🔹 Điều chỉnh khoảng cách dọc để canh giữa
+                          horizontal: 10,
                         ),
-                        child: Text(username,
-                        // In đậm chữ như trong ảnh
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                        textAlign: TextAlign.center, // Canh giữa chữ trong ô xám
-                        
-                        ),
-                      ), // Cho DropdownButton
-              ),
-              
+                      ),
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                      textAlign: TextAlign.center,
+                      onChanged: (value) {
+                        setState(() {
+                          username = value;
+                        });
+                      },
+                    ),
+                  ),
+                ),
+                
+              ],
+            ), 
+            const SizedBox(height: 15),
+          
+              // 3. Danh sách TextField để điền tên thành viên
+              ..._buildMemberInputFields(),
+          
+              const SizedBox(height: 40),
+          
+              // 4. Nút Create
+              _buildCreateButton(),
             ],
-          ), 
-          const SizedBox(height: 15),
-
-            // 3. Danh sách TextField để điền tên thành viên
-            ..._buildMemberInputFields(),
-
-            const SizedBox(height: 40),
-
-            // 4. Nút Create
-            _buildCreateButton(),
-          ],
+          ),
         ),
       ),
     );
@@ -291,7 +320,7 @@ class _CreateGroupPageState extends State<CreateGroupPage> {
   // Xây dựng danh sách TextField cho thành viên
   List<Widget> _buildMemberInputFields() {
     return List.generate(_memberCount - 1, (index) {
-      String label = 'Member ${index + 2}';
+      String label = 'Thành viên ${index + 2}';
       String initialName = ''; // Tên mặc định
 
       // Đặt tên mặc định cho controller
@@ -330,12 +359,12 @@ class _CreateGroupPageState extends State<CreateGroupPage> {
           backgroundColor: Colors.grey[300], // Màu xám nhạt tương đồng với ảnh
           minimumSize: const Size(200, 45), // Kích thước cố định (tương tự ảnh)
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10.0),
+            borderRadius: BorderRadius.circular(20.0),
           ),
           elevation: 0,
         ),
         child: const Text(
-          'Create',
+          'Tạo mới',
           style: TextStyle(
             color: Colors.black87,
             fontSize: 18,

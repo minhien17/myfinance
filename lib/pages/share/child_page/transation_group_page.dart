@@ -286,6 +286,27 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
           ],
         ),
       ),
+      // Lựa chọn 3: Rời nhóm
+      const PopupMenuItem<String>(
+        value: 'out_group',
+        child: Row(
+          children: [
+            Icon(Icons.remove, color: AppColors.blackIcon), // Icon minh họa
+            SizedBox(width: 12),
+            Text('Rời nhóm'),
+          ],
+        ),
+      ),
+      const PopupMenuItem<String>(
+        value: 'delete_group',
+        child: Row(
+          children: [
+            Icon(Icons.delete, color: AppColors.blackIcon), // Icon minh họa
+            SizedBox(width: 12),
+            Text('Xóa nhóm'),
+          ],
+        ),
+      ),
     ],
   ),
 ],

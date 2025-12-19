@@ -27,12 +27,12 @@ class _SignInScreenState extends State<SignInScreen> {
 
   // Kiểm tra cơ bản
   if ( email.isEmpty || password.isEmpty) {
-    toastInfo(msg: "Please fill in all fields");
+    toastInfo(msg: "Vui lòng điền đầy đủ thông tin");
     return;
   }
 
   if (password.length < 6){
-    toastInfo(msg: "Password must have at least 6 characters");
+    toastInfo(msg: "Mật khẩu phải có ít nhất 6 ký tự");
     return;
   }
 
@@ -50,7 +50,7 @@ class _SignInScreenState extends State<SignInScreen> {
       "email":email,
       "password":password
     },
-    url: "http://localhost:3003/auth/login",// fixx
+    url: "http://172.21.64.1:3002/auth/login",// fixx
     onSuccess: (response) {
       hideLoading();
       // lấy token và user name
@@ -109,13 +109,7 @@ class _SignInScreenState extends State<SignInScreen> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: <Widget>[
             // Tạm dùng Text để mô phỏng vị trí logo (G hoặc )
-            Text(
-              imageAsset, 
-              style: TextStyle(
-                fontSize: 20, 
-                color: (text.contains('GOOGLE')) ? Colors.red : Colors.black,
-              )
-            ), 
+            Image.asset(imageAsset, height: 24, width: 24),
             SizedBox(width: 8),
             Text(
               text,
@@ -143,7 +137,8 @@ class _SignInScreenState extends State<SignInScreen> {
             Navigator.pop(context);
           },
         ),
-        title: Text('Sign in'), // Thay đổi tiêu đề
+        title: Text('Đăng nhập'), // Thay đổi tiêu đề
+        centerTitle: true,
         elevation: 0,
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
@@ -159,8 +154,8 @@ class _SignInScreenState extends State<SignInScreen> {
 
             // Nút 1: Connect with Google
             _buildSocialButton(
-              text: 'CONNECT WITH GOOGLE',
-              imageAsset: 'G', 
+              text: 'ĐĂNG NHẬP VỚI GOOGLE',
+              imageAsset: 'assets/icons/gg_icon.png', // Mô phỏng logo Google
               textColor: Colors.red, 
               borderColor: Colors.red, 
               onPressed: () {
@@ -172,8 +167,8 @@ class _SignInScreenState extends State<SignInScreen> {
 
             // Nút 2: Sign in with Apple
             _buildSocialButton(
-              text: 'SIGN IN WITH APPLE',
-              imageAsset: '', 
+              text: 'ĐĂNG NHẬP VỚI APPLE',
+              imageAsset: 'assets/icons/apple_icon.png', // Mô phỏng logo Apple 
               textColor: Colors.black, 
               borderColor: Colors.black, 
               onPressed: () {
@@ -185,7 +180,7 @@ class _SignInScreenState extends State<SignInScreen> {
             Padding(
               padding: const EdgeInsets.only(top: 8.0),
               child: Text(
-                "We'll never post without your permission.",
+                "Chúng tôi sẽ bảo mật dữ liệu của bạn.",
                 style: TextStyle(
                   fontSize: 12,
                   color: Colors.grey[600],
@@ -199,7 +194,7 @@ class _SignInScreenState extends State<SignInScreen> {
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 8.0),
               child: Text(
-                'OR',
+                'HOẶC',
                 style: TextStyle(color: Colors.grey),
               ),
             ),
@@ -223,7 +218,7 @@ class _SignInScreenState extends State<SignInScreen> {
               controller: _passwordController,
               obscureText: !_isPasswordVisible,
               decoration: InputDecoration(
-                labelText: 'Password',
+                labelText: 'Mật khẩu',
                 border: UnderlineInputBorder(),
                 // Biểu tượng mắt
                 suffixIcon: IconButton(
@@ -257,7 +252,7 @@ class _SignInScreenState extends State<SignInScreen> {
                   ),
                 ),
                 child: Text(
-                  'SIGN IN', // Thay đổi chữ thành SIGN IN
+                  'ĐĂNG NHẬP', // Thay đổi chữ thành ĐĂNG NHẬP
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 16,
@@ -283,7 +278,7 @@ class _SignInScreenState extends State<SignInScreen> {
                     });
                   },
                   child: Text(
-                    'Sign up',
+                    'Đăng ký',
                     style: TextStyle(
                       color: Colors.green, 
                       fontSize: 14,
@@ -298,7 +293,7 @@ class _SignInScreenState extends State<SignInScreen> {
                     print('Chuyển sang Quên mật khẩu...');
                   },
                   child: Text(
-                    'Forgot password?',
+                    'Quên mật khẩu?',
                     style: TextStyle(
                       color: Colors.green, 
                       fontSize: 14,

@@ -114,8 +114,8 @@ class _TransactionPageState extends State<TransactionPage> {
 
   void getTotal() {
     ApiUtil.getInstance()!.get(url: "https://67297e9b6d5fa4901b6d568f.mockapi.io/api/test/home", onSuccess: (response){
-      //var data = response.data[0];
-      var data = fakeTransactions["totals"];
+      var data = response.data[0];
+      // var data = fakeTransactions["totals"];
       
       _balance = data["balance"];
       _totalIncome = data['income'];
