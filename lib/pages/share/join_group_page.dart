@@ -1,14 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:my_finance/models/group_model.dart';
-
-// 1. Models: Định nghĩa dữ liệu cho Nhóm và Thành viên
-class Member {
-  final String id;
-  final String name;
-  final String? avatarUrl;
-
-  Member({required this.id, required this.name, this.avatarUrl});
-}
+import 'package:my_finance/models/member_model.dart';
+import 'package:my_finance/api/api_util.dart';
+import 'package:my_finance/pages/share/child_page/transation_group_page.dart';
 
 // 2. Màn hình tham gia nhóm
 class JoinGroupScreen extends StatefulWidget {
@@ -28,12 +22,16 @@ class _JoinGroupScreenState extends State<JoinGroupScreen> {
   // Dữ liệu nhóm sau khi tìm thấy
   Group? _foundGroup;
   
+  // Danh sách thành viên để hiển thị (đã filter những người chưa join)
+  List<Member> _membersToSelect = [];
+  
   // ID thành viên mà người dùng chọn (chính là họ)
   String? _selectedMemberId;
+  String? _selectedMemberName;
 
   // --- LOGIC GIẢ LẬP API ---
 
-  // Giả lập API kiểm tra mã nhóm
+  // Bước 1: Kiểm tra mã nhóm
   Future<void> _verifyGroupCode() async {
     final code = _codeController.text.trim();
     if (code.isEmpty) {
@@ -45,49 +43,105 @@ class _JoinGroupScreenState extends State<JoinGroupScreen> {
 
     setState(() => _isLoading = true);
 
-    // Giả lập delay mạng 1.5 giây
-    await Future.delayed(const Duration(milliseconds: 1500));
+    ApiUtil.getInstance()!.get(
+      url: "http://localhost:3004/join/$code",
+      onSuccess: (response) {
+        setState(() => _isLoading = false);
+        
+        try {
+          final item = response.data;
+          
+          List<Member> allMembers = [];
+          List<Member> unjoinedMembers = [];
+          int joinedCount = 0;
+          
+          if (item["members"] != null) {
+            for (var m in item["members"]) {
+              final member = Member.fromJson(m is Map ? Map<String, dynamic>.from(m) : {});
+              allMembers.add(member);
+              
+              if (member.joined) {
+                joinedCount++;
+              } else {
+                unjoinedMembers.add(member);
+              }
+            }
+          }
 
-    // Mock dữ liệu trả về (Giả sử mã đúng là '123456')
-    if (code == '123456') {
-      setState(() {
-        _foundGroup = Group(
-          id: 'g01',
-          name: 'Team Dự Án Business Analyst',
-          number: 4,
-          members: [
-            "Hiển", "Trọng", "Đạt"
-          ],
-        );
-        _currentStep = 1; // Chuyển sang bước 2
-        _isLoading = false;
-      });
-    } else {
-      setState(() => _isLoading = false);
-      if (mounted) {
+          final group = Group(
+            id: (item["id"] ?? item["groupId"] ?? "").toString(),
+            name: (item["name"] ?? "No Name").toString(),
+            code: (item["code"] ?? "").toString(),
+            number: joinedCount,
+            totalMembers: allMembers.length,
+            members: allMembers
+          );
+
+          setState(() {
+            _foundGroup = group;
+            _membersToSelect = unjoinedMembers;
+            _currentStep = 1; // Chuyển sang bước chọn thành viên
+          });
+
+        } catch (e) {
+          print("Error parsing join response: $e");
+          ScaffoldMessenger.of(context).showSnackBar(
+             const SnackBar(content: Text('Lỗi xử lý dữ liệu nhóm')),
+          );
+        }
+      },
+      onError: (error) {
+        setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Không tìm thấy nhóm với mã này.')),
+           SnackBar(content: Text('Lỗi kiểm tra mã: $error')),
         );
-      }
-    }
+      },
+    );
   }
 
-  // Xử lý xác nhận tham gia
+  // Bước 2: Xác nhận tham gia
   void _confirmJoin() {
-    if (_selectedMemberId == null) {
+    if (_selectedMemberId == null || _foundGroup == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Vui lòng chọn tên của bạn trong danh sách.')),
       );
       return;
     }
 
-    // Logic gọi API join nhóm thật ở đây...
-    
-    // Sau khi thành công, back về màn danh sách và trả về kết quả
-    Navigator.pop(context, true); 
-    
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Đã tham gia nhóm ${_foundGroup?.name} thành công!')),
+    setState(() => _isLoading = true);
+
+    ApiUtil.getInstance()!.post(
+      url: "http://localhost:3004/join",
+      body: {
+        "groupCode": _foundGroup!.code,
+        "memberId": _selectedMemberId
+      },
+      onSuccess: (response) {
+        setState(() => _isLoading = false);
+        
+        final selectedMember = _foundGroup!.members.firstWhere((m) => m.id == _selectedMemberId);
+        
+        // Chuyển sang trang chi tiết nhóm
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => TransactionGroupPage(
+                group: _foundGroup!,
+                joinedMemberName: selectedMember.name,
+              ),
+            ),
+          );
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Đã tham gia nhóm ${_foundGroup?.name} thành công!')),
+        );
+      },
+      onError: (error) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+           SnackBar(content: Text('Lỗi tham gia: $error')),
+        );
+      },
     );
   }
 
@@ -215,7 +269,7 @@ class _JoinGroupScreenState extends State<JoinGroupScreen> {
                 textAlign: TextAlign.center,
               ),
               Text(
-                'Mã: ${_foundGroup?.id}',
+                'Mã: ${_foundGroup?.code}',
                 style: const TextStyle(color: Colors.grey),
               ),
             ],
@@ -231,21 +285,22 @@ class _JoinGroupScreenState extends State<JoinGroupScreen> {
         // Danh sách thành viên để chọn
         Expanded(
           child: ListView.separated(
-            itemCount: _foundGroup?.members.length ?? 0,
+            itemCount: _membersToSelect.length,
             separatorBuilder: (ctx, index) => const Divider(),
             itemBuilder: (context, index) {
-              final member = _foundGroup!.members[index];
-              final isSelected = _selectedMemberId == member;
+              final member = _membersToSelect[index];
+              final isSelected = _selectedMemberId == member.id;
 
               return ListTile(
                 onTap: () {
                   setState(() {
-                    _selectedMemberId = member;
+                    _selectedMemberId = member.id;
+                    _selectedMemberName = member.name;
                   });
                 },
                 
                 title: Text(
-                  member,
+                  member.name,
                   style: TextStyle(
                     fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                     color: isSelected ? Colors.blue : Colors.black,

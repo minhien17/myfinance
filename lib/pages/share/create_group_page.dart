@@ -95,56 +95,73 @@ class _CreateGroupPageState extends State<CreateGroupPage> {
     print('Số lượng: $_memberCount');
     print('Thành viên: $memberNames');
 
-    // 💡 Logic gọi API để tạo GroupModel
-    // Sau khi tạo thành công, thường sẽ Navigator.pop(context);
-    // showLoading(context);
-    _callApi(context);
+    // Gọi API
+    _callApi(context, groupName, memberNames);
     
   }
 
-  Future<void> _callApi(BuildContext context) async {
+  Future<void> _callApi(BuildContext context, String groupName, List<String> memberNames) async {
     showLoading(context);
 
-   // 3. Sử dụng Completer để đợi API hoàn thành
-  final completer = Completer<void>();
-  // Nếu gọi API
-  ApiUtil.getInstance()!.post(
-    url: "https://67297e9b6d5fa4901b6d568f.mockapi.io/api/test/transaction",
+    // Chuẩn bị body theo DTO
+    // dto.name, dto.ownerName, dto.memberNames
+    // Giả sử ownerName là username hiện tại (đã có trong biến username hoặc memberNames[0])
     
-    onSuccess: (response) {
-      
-      print("✅ Add expense success: ${response.data}");
-      completer.complete(); 
-      
-    },
-    onError: (error) {
-      print("❌ Add expense error: $error");
-      completer.completeError(error); 
-      Navigator.pop(context); // quay lại màn hình trước
-      
-    },
-
-  );
-
-  try {
-    // 5. ĐỢI API HOÀN THÀNH (Đây là bước QUAN TRỌNG NHẤT)
-    await completer.future;
-
-  } catch (e) {
-    // Bắt lỗi nếu completer.completeError được gọi
-    // Thêm logic thông báo lỗi ở đây (ví dụ: toastInfo)
-
-  } finally {
-    // 6. ẨN LOADING (Đảm bảo được gọi trong mọi trường hợp)
-    if (context.mounted) {
-      hideLoading();
+    // memberNames bao gồm cả owner, nhưng DTO có vẻ tách ownerName và memberNames?
+    // Dựa vào code NestJS: createGroup(userId, dto.name, dto.ownerName, dto.memberNames)
+    // Thì memberNames trong DTO là danh sách các thành viên KHÁC owner? Hay tất cả?
+    // Thường thì backend sẽ handle việc add owner vào group. 
+    // Tuy nhiên theo prompt "dto.memberNames.map((x) => x.trim())", user truyền lên list tên.
+    
+    // Ở UI _createGroup logic: memberNames include cả username.
+    // Hãy gửi tách biệt để an toàn hoặc gửi tất cả tùy logic backend.
+    // Với "dto.ownerName", ta gửi username.
+    // Với "dto.memberNames", ta gửi danh sách thành viên (có thể bao gồm hoặc không bao gồm owner, 
+    // nhưng để chắc chắn ta gửi list các tên thành viên khác).
+    
+    // Tuy nhiên, logic UI hiện tại gộp chung. 
+    // Hãy giả định memberNames gửi lên là danh sách tên các thành viên (không bao gồm owner nếu backend đã có ownerName).
+    
+    List<String> membersOnly = List.from(memberNames);
+    if (membersOnly.contains(username)) {
+      membersOnly.remove(username);
     }
+
+    final body = {
+      "name": groupName,
+      "ownerName": username,
+      "memberNames": membersOnly 
+    };
+
+    final completer = Completer<void>();
     
-    // Tùy chọn: Đóng màn hình hiện tại sau khi hoàn thành
-    // if (context.mounted) {
-    //   Navigator.of(context).pop(); 
-    // }
-  }
+    ApiUtil.getInstance()!.post(
+      url: "http://localhost:3004/", 
+      body: body,
+      onSuccess: (response) {
+        print("✅ Create group success: ${response.data}");
+        completer.complete();
+        toastInfo(msg: "Tạo nhóm thành công!");
+      },
+      onError: (error) {
+        print("❌ Create group error: $error");
+        completer.completeError(error);
+        toastInfo(msg: "Lỗi tạo nhóm: $error");
+      },
+    );
+
+    try {
+      await completer.future;
+      if (context.mounted) {
+        Navigator.pop(context); // Đóng màn hình tạo nhóm
+      }
+    } catch (e) {
+      // Error handled in onError via toast
+    } finally {
+      if (context.mounted) {
+        hideLoading();
+      }
+    }
   }
 
   @override

@@ -32,15 +32,15 @@ class _ReportPageState extends State<ReportPage> {
     transactionData = widget.transactionsMap;
     
     // 1️⃣ Hứng tổng income và expense từ fakeTransactions['totals']
-    _totalIncome = (transactionData['totals']['income'] as num).toDouble();
-    _totalExpense = (transactionData['totals']['expense'] as num).toDouble();
+    _totalIncome = Common.parseDouble(transactionData['totals']['income']);
+    _totalExpense = Common.parseDouble(transactionData['totals']['expense']);
     
     // 1️⃣ Tạo list tạm thời kiểu MapEntry<String, double>
     var entries = <MapEntry<String, double>>[];
 
     (transactionData['data'] as Map<String, dynamic>).forEach((key, value) {
       if (key.toLowerCase() != 'income'){
-      entries.add(MapEntry(key, (value as num).toDouble()));}
+      entries.add(MapEntry(key, Common.parseDouble(value)));}
     });
 
     // 2️⃣ Sắp xếp giảm dần
@@ -312,7 +312,7 @@ List<TopExpenseModel> aggregateAndGetTop5Expenses(Map<String, dynamic> transacti
   // 1️⃣ Chỉ lấy các khoản chi tiêu (expense), loại bỏ income
   List<MapEntry<String, double>> expenseList = data.entries
       .where((e) => e.key.toLowerCase() != 'income')
-      .map((e) => MapEntry(e.key, (e.value as num).toDouble()))
+      .map((e) => MapEntry(e.key, Common.parseDouble(e.value)))
       .toList();
 
   // 2️⃣ Sắp xếp giảm dần

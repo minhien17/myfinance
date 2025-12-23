@@ -4,12 +4,22 @@ import 'package:bootstrap_icons/bootstrap_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:my_finance/api/api_util.dart';
 import 'package:my_finance/common/loading_dialog.dart';
+import 'package:my_finance/models/group_expense_model.dart';
+import 'package:my_finance/models/group_model.dart';
 import 'package:my_finance/models/icon.dart';
 import 'package:my_finance/models/list_icon.dart';
+import 'package:my_finance/models/member_model.dart';
 import 'package:my_finance/models/transaction_model.dart';
 import 'package:my_finance/res/app_colors.dart';
+import 'package:my_finance/shared_preference.dart';
+
+import 'package:my_finance/models/group_model.dart';
+// ...
 
 class AddTransactionGroupPage extends StatefulWidget {
+  final Group group;
+  const AddTransactionGroupPage({super.key, required this.group});
+
   @override
   _AddTransactionGroupPageState createState() => _AddTransactionGroupPageState();
 }
@@ -22,14 +32,73 @@ class _AddTransactionGroupPageState extends State<AddTransactionGroupPage> {
   String note = "";
   DateTime date = DateTime.now();
 
-  List<String> members = ["Hiển", "Trọng", "Đạt"];
-  String selectedMember = '';
+  List<Member> members = [];
+  String selectedMemberId = ''; // member ID
+  
+  bool isSplitBill = false;
+  List<String> participantIds = []; // List participant IDs (member IDs)
 
   @override
   void initState() {
-    // TODO: implement initState
     super.initState();
-    selectedMember = members[0];
+    // Lấy danh sách thành viên từ Group object passed vào
+    members = widget.group.members;
+
+    // Set giá trị mặc định trước (để tránh rỗng khi user bấm nút Save ngay)
+    if (members.isNotEmpty) {
+      selectedMemberId = members[0].id;
+    }
+
+    // Sau đó mới tìm member của user hiện tại (async)
+    _initCurrentMember();
+  }
+
+  Future<void> _initCurrentMember() async {
+    try {
+      // Lấy userId từ SharedPreference
+      final userId = await SharedPreferenceUtil.getUserId();
+      print("🔍 DEBUG - Current userId: $userId");
+      print("🔍 DEBUG - Members: ${members.map((m) => 'id=${m.id}, name=${m.name}, userId=${m.userId}').toList()}");
+
+      if (userId != null && userId.isNotEmpty) {
+        // Tìm member có userId trùng với user hiện tại
+        final myMember = members.firstWhere(
+          (m) {
+            print("🔍 Comparing: m.userId=${m.userId} == userId=$userId => ${m.userId == userId}");
+            return m.userId == userId;
+          },
+          orElse: () {
+            print("⚠️ Không tìm thấy member với userId=$userId");
+            return members.isNotEmpty ? members[0] : Member(id: '', name: '');
+          },
+        );
+
+        print("🔍 DEBUG - Selected member: id=${myMember.id}, name=${myMember.name}");
+
+        if (mounted && myMember.id.isNotEmpty) {
+          setState(() {
+            selectedMemberId = myMember.id;
+          });
+          print("✅ Updated selectedMemberId = $selectedMemberId");
+        }
+      } else {
+        print("⚠️ userId rỗng, fallback về memberName");
+        // Fallback: tìm theo memberName nếu không có userId
+        if (widget.group.memberName != null) {
+          final me = members.firstWhere(
+            (m) => m.name == widget.group.memberName,
+            orElse: () => members.isNotEmpty ? members[0] : Member(id: '', name: ''),
+          );
+          if (mounted && me.id.isNotEmpty) {
+            setState(() {
+              selectedMemberId = me.id;
+            });
+          }
+        }
+      }
+    } catch (e) {
+      print("❌ Error init current member: $e");
+    }
   }
 
   @override
@@ -59,10 +128,70 @@ class _AddTransactionGroupPageState extends State<AddTransactionGroupPage> {
   }
 
   Future<void> callApi(BuildContext thiscontext) async {
-    await addExpense(amount: amount, category: category, dateTime: date,context: thiscontext, note: note);
+    if (isSplitBill) {
+      await addGroupExpense(thiscontext);
+    } else {
+      await addIndividualExpense(thiscontext);
+    }
+  }
 
-    print(selectedMember);
-    Navigator.pop(thiscontext); // quay lại màn hình trước
+  Future<void> addIndividualExpense(BuildContext thiscontext) async {
+    await addExpense(
+      amount: amount, 
+      category: category, 
+      dateTime: date, 
+      context: thiscontext, 
+      note: note
+    );
+    Navigator.pop(thiscontext); 
+  }
+
+  Future<void> addGroupExpense(BuildContext thiscontext) async {
+    // Validate paidByMemberId không được rỗng
+    if (selectedMemberId.isEmpty) {
+      ScaffoldMessenger.of(thiscontext).showSnackBar(
+        const SnackBar(content: Text('Vui lòng chọn người chi tiền')),
+      );
+      return;
+    }
+
+    // API: POST /groups/{groupId}/expenses
+    showLoading(thiscontext);
+
+    // ✅ Ensure participantIds bao gồm paidByMemberId
+    List<String> finalParticipants = List.from(participantIds);
+    if (!finalParticipants.contains(selectedMemberId)) {
+      finalParticipants.add(selectedMemberId);
+    }
+
+    final body = {
+      "title": note.isEmpty ? category : note,
+      "amount": amount,
+      "splitType": "equal",
+      "paidByMemberId": selectedMemberId,
+      "participantMemberIds": finalParticipants,
+    };
+
+    print("🔍 DEBUG - Request body: $body");
+    print("🔍 DEBUG - Group ID: ${widget.group.id}");
+    print("🔍 DEBUG - Paid by: $selectedMemberId");
+
+    ApiUtil.getInstance()!.post(
+      url: "http://localhost:3001/groups/${widget.group.id}/expenses",
+      body: body,
+      onSuccess: (response) {
+        print("✅ Add group expense success: ${response.data}");
+        hideLoading();
+        Navigator.pop(thiscontext, true);
+      },
+      onError: (error) {
+        print("❌ Add group expense error: $error");
+        hideLoading();
+        ScaffoldMessenger.of(thiscontext).showSnackBar(
+          SnackBar(content: Text('Lỗi: $error')),
+        );
+      },
+    );
   }
 
   String formatDate(DateTime d) {
@@ -173,40 +302,40 @@ class _AddTransactionGroupPageState extends State<AddTransactionGroupPage> {
                     ],
                   ),
                   const SizedBox(height: 15),
-                  Row(
-                    children: [
-                      const Icon(BootstrapIcons.person, color: AppColors.blackIcon, size: 28),
-                      const SizedBox(width: 15),
-                      Expanded(
-                        child: DropdownButtonFormField<String>(
-                          // value: selectedMember,
-                          items: members.map((member) {
-                            return DropdownMenuItem<String>(
-                              value: member,
-                              child: Text(
-                                member,
-                                style: const TextStyle(fontSize: 18, color: AppColors.blackIcon),
-                              ),
-                            );
-                          }).toList(),
-                          onChanged: (value) {
-                            setState(() {
-                              selectedMember = value!;
-                            });
-                          },
-                          decoration: const InputDecoration(
-                            hintText: 'Chọn thành viên',
+                  // Row(
+                  //   children: [
+                  //     const Icon(BootstrapIcons.person, color: AppColors.blackIcon, size: 28),
+                  //     const SizedBox(width: 15),
+                  //     Expanded(
+                  //       child: DropdownButtonFormField<String>(
+                  //         value: selectedMemberId.isNotEmpty ? selectedMemberId : null,
+                  //         items: members.map((member) {
+                  //           return DropdownMenuItem<String>(
+                  //             value: member.id,
+                  //             child: Text(
+                  //               member.name,
+                  //               style: const TextStyle(fontSize: 18, color: AppColors.blackIcon),
+                  //             ),
+                  //           );
+                  //         }).toList(),
+                  //         onChanged: (value) {
+                  //           setState(() {
+                  //             selectedMemberId = value!;
+                  //           });
+                  //         },
+                  //         decoration: const InputDecoration(
+                  //           hintText: 'Chọn thành viên',
                             
-                          ),
-                          dropdownColor: Colors.white,
-                          style: const TextStyle(
-                            fontSize: 18,
-                            // color: Colors.orange,
-                          ),
-                        ),),
-                    ],
-                  ),
-                  const SizedBox(height: 15),
+                  //         ),
+                  //         dropdownColor: Colors.white,
+                  //         style: const TextStyle(
+                  //           fontSize: 18,
+                  //           // color: Colors.orange,
+                  //         ),
+                  //       ),),
+                  //   ],
+                  // ),
+                  // const SizedBox(height: 15),
 
                   /// Note
                   Row(
@@ -252,6 +381,47 @@ class _AddTransactionGroupPageState extends State<AddTransactionGroupPage> {
                       ],
                     ),
                   ),
+
+                  const SizedBox(height: 15),
+
+                  /// Split Bill toggle
+                  Container(
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    child: Row(
+                      children: [
+                        const Icon(BootstrapIcons.people, color: AppColors.blackIcon, size: 28),
+                        const SizedBox(width: 15),
+                        const Text(
+                          "Chia sẻ chi phí",
+                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
+                        ),
+                        const Spacer(),
+                        Switch(
+                          value: isSplitBill,
+                          onChanged: (val) {
+                            setState(() {
+                              isSplitBill = val;
+                              if (isSplitBill) {
+                                participantIds = members.map((m) => m.id).toList();
+                              } else {
+                                participantIds = [];
+                              }
+                            });
+                          },
+                          activeColor: Colors.green,
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  if (isSplitBill)
+                    const Padding(
+                      padding: EdgeInsets.only(left: 43, bottom: 10),
+                      child: Text(
+                        "Chi phí sẽ được chia đều cho tất cả thành viên trong nhóm.",
+                        style: TextStyle(color: Colors.grey, fontSize: 13),
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -313,8 +483,13 @@ Future<void> addExpense({
   final completer = Completer<void>();
   // Nếu gọi API
   ApiUtil.getInstance()!.post(
-    url: "https://67297e9b6d5fa4901b6d568f.mockapi.io/api/test/transaction",
-    body:  expense.toJson(),
+    url: "http://localhost:3001/",
+    body: {
+      "amount": amount,
+      "category": category,
+      "note": note,
+      "dateTime": dateTime.toIso8601String(),
+    },
     onSuccess: (response) {
       
       print("✅ Add expense success: ${response.data}");

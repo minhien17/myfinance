@@ -1,14 +1,23 @@
+import 'package:my_finance/models/member_model.dart';
+
 class Group {
   final String id;
   final String name;
-  final int number; // số lượng thành viên
-  final List<String> members; // danh sách tên thành viên
+  final int number; // số lượng thành viên đã tham gia (joinedMemberCount)
+  final int totalMembers; // tổng số lượng thành viên (memberCount)
+  final List<Member> members; // danh sách thành viên
+
+  final String code; // Mã nhóm
+  final String? memberName; // Tên của chính người dùng hiện tại trong nhóm này
 
   Group({
     required this.id,
     required this.name,
+    this.code = "", // default
     required this.number,
+    this.totalMembers = 0, 
     required this.members,
+    this.memberName,
   });
 
   Map<String, dynamic> toJson() {
@@ -17,6 +26,7 @@ class Group {
       'name': name,
       'number': number,
       'members': members,
+      'memberName': memberName,
     };
   }
 
@@ -25,7 +35,8 @@ class Group {
       id: json['id'],
       name: json['name'],
       number: json['number'],
-      members: List<String>.from(json['members']),
+      members: (json['members'] as List).map((m) => Member.fromJson(m)).toList(),
+      memberName: json['memberName'],
     );
   }
 

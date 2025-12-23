@@ -27,7 +27,7 @@ class _LoadingScreenState extends State<LoadingScreen> {
 
     // 3. Kiểm tra điều kiện và điều hướng
     Widget nextScreen;
-    if (!token.isNotEmpty) { // fixx tạm
+    if (token.isNotEmpty) { // fixx tạm
       // Token KHÔNG phải là "" (tức là đã đăng nhập)
       nextScreen = MainPage();
     } else {

@@ -28,10 +28,11 @@ class ApiUtil {
     try {
       print('--- GET Request ---');
       print('URL: $uri');
+      print('Token: $token');
       var res = await http.get(
         uri,
         headers: {
-          "authorization": 'Bearer $token',
+          "Authorization": 'Bearer $token',
           "content-type": 'application/json; charset=UTF-8'
         },
       ).timeout(const Duration(seconds: 10));
@@ -71,7 +72,7 @@ class ApiUtil {
         uri,
         body: jsonEncode(body),
         headers: {
-          "authorization": 'Bearer $token',
+          "Authorization": 'Bearer $token',
           "content-type": 'application/json; charset=UTF-8'
         },
       ).timeout(const Duration(seconds: 10));
@@ -111,7 +112,7 @@ class ApiUtil {
         uri,
         body: jsonEncode(body),
         headers: {
-          "authorization": 'Bearer $token',
+          "Authorization": 'Bearer $token',
           "content-type": 'application/json; charset=UTF-8'
         },
       ).timeout(const Duration(seconds: 10));
@@ -153,7 +154,7 @@ class ApiUtil {
       var res = await http.delete(
         uri,
         headers: {
-          "authorization": 'Bearer $token',
+          "Authorization": 'Bearer $token',
           "content-type": 'application/json; charset=UTF-8'
         },
       ).timeout(const Duration(seconds: 10));
@@ -192,7 +193,7 @@ class ApiUtil {
         uri,
         body: jsonEncode(body),
         headers: {
-          "authorization": 'Bearer $token',
+          "Authorization": 'Bearer $token',
           "content-type": 'application/json; charset=UTF-8'
         },
       ).timeout(const Duration(seconds: 10));

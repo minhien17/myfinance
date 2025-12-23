@@ -4,6 +4,8 @@ import 'package:bootstrap_icons/bootstrap_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:my_finance/api/api_util.dart';
 import 'package:my_finance/common/flutter_toast.dart';
+import 'package:my_finance/common/loading_dialog.dart';
+import 'package:my_finance/models/debt_model.dart';
 import 'package:my_finance/models/list_icon.dart';
 import 'package:my_finance/models/transaction_model.dart';
 import 'package:my_finance/pages/share/child_page/add_transation_group_page.dart';
@@ -13,9 +15,14 @@ import 'package:my_finance/res/app_colors.dart';
 import 'package:my_finance/shared_preference.dart';
 import 'package:my_finance/utils.dart';
 
+import 'package:my_finance/models/group_model.dart';
+import 'package:my_finance/models/member_model.dart';
+// ... imports
+
 class TransactionGroupPage extends StatefulWidget {
-  final String name;
-  const TransactionGroupPage({super.key, required this.name});
+  final Group group;
+  final String? joinedMemberName;
+  const TransactionGroupPage({super.key, required this.group, this.joinedMemberName});
   @override
   _TransactionGroupPageState createState() => _TransactionGroupPageState();
 }
@@ -30,23 +37,209 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
   List<TransactionModel> lists = [];
   bool _loading = true;
 
-  double _totalExpense = 0; 
+  List<DebtModel> myDebts = [];
+  List<DebtModel> owedToMe = [];
+  int currentTab = 0; // 0: Transactions, 1: Debts
+
+  double _totalExpense = 0;
+  double _myExpense = 0;
   String owner = '';
+
+  List<Member> groupMembers = []; // Lưu danh sách members để hiển thị tên trong phần nợ
 
   void reLoadPage(){
     getListMonth();
     getListTransaction(selectedMonth);
+    fetchDebts();
+  }
+
+  Future<void> fetchDebts() async {
+    // GET /groups/{groupId}/expenses/my-debts
+    ApiUtil.getInstance()!.get(
+      url: "http://localhost:3001/groups/${widget.group.id}/expenses/my-debts",
+      onSuccess: (response) {
+        final List<dynamic> data = response.data;
+        setState(() {
+          myDebts = data.map((e) => DebtModel.fromJson(e)).toList();
+        });
+      },
+      onError: (err) => print("Fetch debts error: $err"),
+    );
+
+    // GET /groups/{groupId}/expenses/owed-to-me
+    ApiUtil.getInstance()!.get(
+      url: "http://localhost:3001/groups/${widget.group.id}/expenses/owed-to-me",
+      onSuccess: (response) {
+        final List<dynamic> data = response.data;
+        setState(() {
+          owedToMe = data.map((e) => DebtModel.fromJson(e)).toList();
+        });
+      },
+      onError: (err) => print("Fetch owed error: $err"),
+    );
+  }
+
+  Future<void> fetchGroupDetailsAndNavigate() async {
+    // Nếu đã có groupMembers thì dùng luôn, không cần fetch lại
+    if (groupMembers.isNotEmpty) {
+      final fullGroup = Group(
+        id: widget.group.id,
+        name: widget.group.name,
+        code: widget.group.code,
+        number: widget.group.number,
+        totalMembers: widget.group.totalMembers,
+        members: groupMembers,
+        memberName: widget.group.memberName,
+      );
+
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => AddTransactionGroupPage(group: fullGroup)),
+      ).then((_) => reLoadPage());
+      return;
+    }
+
+    // Nếu chưa có thì fetch
+    showLoading(context);
+
+    ApiUtil.getInstance()!.get(
+      url: "http://localhost:3004/join/${widget.group.code}",
+      onSuccess: (response) {
+        Navigator.of(context).pop(); // Đóng loading
+
+        try {
+          final groupData = response.data;
+
+          // Parse members từ response
+          List<Member> members = [];
+          if (groupData["members"] != null) {
+            final List<dynamic> membersData = groupData["members"];
+            for (var m in membersData) {
+              members.add(Member.fromJson(m is Map ? Map<String, dynamic>.from(m) : {}));
+            }
+          }
+
+          // Update groupMembers state
+          setState(() {
+            groupMembers = members;
+          });
+
+          // Tạo Group object mới với đầy đủ members
+          final fullGroup = Group(
+            id: widget.group.id,
+            name: widget.group.name,
+            code: widget.group.code,
+            number: widget.group.number,
+            totalMembers: widget.group.totalMembers,
+            members: members,
+            memberName: widget.group.memberName,
+          );
+
+          print("🔍 DEBUG - Fetched ${members.length} members for group ${widget.group.name}");
+
+          // Mở AddTransactionGroupPage với Group đã có đầy đủ members
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => AddTransactionGroupPage(group: fullGroup)),
+          ).then((_) => reLoadPage());
+        } catch (e) {
+          print("❌ Error parsing group details: $e");
+          toastInfo(msg: "Lỗi khi tải thông tin nhóm");
+        }
+      },
+      onError: (error) {
+        Navigator.of(context).pop(); // Đóng loading
+        print("❌ Error fetching group details: $error");
+        toastInfo(msg: "Lỗi khi tải thông tin nhóm");
+      },
+    );
+  }
+
+  void markAsPaid(String shareId) {
+    showLoading(context);
+    ApiUtil.getInstance()!.post(
+      url: "http://localhost:3001/groups/${widget.group.id}/expenses/mark-paid",
+      body: {"shareId": shareId},
+      onSuccess: (response) {
+        hideLoading();
+        reLoadPage();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Đã nhận tiền thành công!')),
+        );
+      },
+      onError: (err) {
+        hideLoading();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Lỗi: $err')),
+        );
+      }
+    );
   }
 
   Future<void> getOwner() async {
     owner = await SharedPreferenceUtil.getUsername();
   }
 
+  void fetchGroupMembers() {
+    // Fetch full group details để có đầy đủ members cho việc hiển thị tên
+    print("🔍 DEBUG - Fetching group members with code: ${widget.group.code}");
+
+    if (widget.group.code.isEmpty) {
+      print("❌ ERROR - Group code is empty! Cannot fetch members.");
+      return;
+    }
+
+    ApiUtil.getInstance()!.get(
+      url: "http://localhost:3004/join/${widget.group.code}",
+      onSuccess: (response) {
+        print("✅ DEBUG - Received response from /join API");
+        try {
+          final groupData = response.data;
+          print("🔍 DEBUG - Response data: $groupData");
+
+          // Parse members từ response
+          List<Member> members = [];
+          if (groupData["members"] != null) {
+            final List<dynamic> membersData = groupData["members"];
+            print("🔍 DEBUG - Found ${membersData.length} members in response");
+            for (var m in membersData) {
+              members.add(Member.fromJson(m is Map ? Map<String, dynamic>.from(m) : {}));
+            }
+          } else {
+            print("⚠️ WARNING - groupData['members'] is null!");
+          }
+
+          // Update groupMembers state
+          if (mounted) {
+            setState(() {
+              groupMembers = members;
+            });
+          }
+
+          print("🔍 DEBUG - Loaded ${members.length} members for debt display");
+        } catch (e) {
+          print("❌ Error parsing group members: $e");
+        }
+      },
+      onError: (error) {
+        print("❌ Error fetching group members: $error");
+      },
+    );
+  }
+
   @override
   void initState() {
     super.initState();
-    _scrollController = ScrollController(); 
-    
+    _scrollController = ScrollController();
+
+    print("🔍 DEBUG - initState: group.id=${widget.group.id}, group.code=${widget.group.code}");
+
+    getOwner().then((_) {
+      if (mounted) setState(() {});
+    });
+
+    // Fetch group members để hiển thị tên trong phần nợ
+    fetchGroupMembers();
 
     selectedMonth = '${now.month.toString().padLeft(2, '0')}/${now.year}';
     setState(() {
@@ -179,6 +372,7 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
                         note: expense.note ?? "",
                         date: expense.dateTime,
                         owner: expense.owner,
+                        members: widget.group.members, // 🔥 Truyền members từ API
                       ),
                     ),
                   );
@@ -241,7 +435,7 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
       appBar: AppBar(
         leading: IconButton(onPressed: (){Navigator.pop(context);}, icon: Icon(Icons.arrow_back)),
         title: Text(
-          widget.name,
+          widget.group.name,
           style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
         actions: [
@@ -385,7 +579,7 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceAround,
                       children: [
-                        Text("Bạn", style: TextStyle(
+                        Text(widget.joinedMemberName ?? widget.group.memberName ?? (owner.isNotEmpty ? owner : "Bạn"), style: TextStyle(
                                 fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.title)),
                         
                         Text("Nhóm", style: TextStyle(
@@ -397,7 +591,7 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceAround,
                       children: [
-                        Text(Common.formatNumber(_totalExpense.toString()),
+                        Text(Common.formatNumber(_myExpense.toString()),
                             style: const TextStyle(color: AppColors.blackIcon, fontSize: 18)),
                         Text(Common.formatNumber(_totalExpense.toString()),
                             style: const TextStyle(color: AppColors.blackIcon, fontSize: 18)),
@@ -405,7 +599,6 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
                     ),
                     const SizedBox(height: 15),
                    Row(
-                    
                     children: [
                       // 🔹 Nút Add Transaction
                       Expanded(
@@ -420,10 +613,7 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
                             ),
                           ),
                           onPressed: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(builder: (context) => AddTransactionGroupPage()),
-                            );
+                            fetchGroupDetailsAndNavigate();
                           },
                           child: const Text(
                             "Thêm chi tiêu",
@@ -431,7 +621,7 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
                           ),
                         ),
                       ),
-                      SizedBox(width: 20,),
+                      const SizedBox(width: 20,),
 
                       // 🔹 Nút View Detail
                       Expanded(
@@ -448,7 +638,7 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
                           onPressed: () {
                             Navigator.push(
                               context,
-                              MaterialPageRoute(builder: (context) => ViewReportPage()),
+                              MaterialPageRoute(builder: (context) => ViewReportPage(groupId: widget.group.id, groupName: widget.group.name)),
                             );
                           },
                           child: const Text(
@@ -459,17 +649,27 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
                       ),
                     ],
                   ),
-
+                  
+                  const SizedBox(height: 20),
+                    
+                  // Tab selection
+                  Row(
+                    children: [
+                      _buildTabItem("Giao dịch", 0),
+                      _buildTabItem("Khoản nợ", 1),
+                    ],
+                  ),
                   ],
                 ),
               ),
               Container(
                 padding: const EdgeInsets.only(top: 15),
                 color: AppColors.background,
-                child: 
-                _loading ? 
-                Center(child: CircularProgressIndicator(),) :
-                Column(children: [...buildExpenseList(lists, context)]),
+                child: _loading 
+                  ? const Center(child: CircularProgressIndicator()) 
+                  : (currentTab == 0 
+                      ? Column(children: [...buildExpenseList(lists, context)])
+                      : _buildDebtList()),
               ),
             ]),
           ),
@@ -481,27 +681,75 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
   void getSum() {}
   
   void getListMonth() {
-    _loading = false;
+    // 🔥 Gọi API để lấy danh sách tháng có dữ liệu từ group expenses
     ApiUtil.getInstance()!.get(
-    url: "https://67297e9b6d5fa4901b6d568f.mockapi.io/api/test/transactions",
-    onSuccess: (response) {
-      // giả sử response.data là 1 mảng JSON
-      List<dynamic> jsonList = response.data;
-      if (!mounted) return;
-      setState(() {
-        // months =
-        //     jsonList.map((json) => TransactionModel.fromJson(json).).toList();
-        _loading = false;
-      });
-    },
-    onError: (error) {
-      if (error is TimeoutException) {
-            toastInfo(msg: "Time out");
-          } else {
-            toastInfo(msg: error.toString());
+      url: "http://localhost:3001/groups/${widget.group.id}/expenses",
+      onSuccess: (response) {
+        if (response.data != null && response.data is List) {
+          Set<String> monthSet = {};
+
+          // Lấy danh sách tháng từ group expenses
+          for (var expense in response.data) {
+            try {
+              // ✅ Kiểm tra expense là Map trước khi parse
+              if (expense is Map<String, dynamic> && expense['dateTime'] != null) {
+                DateTime date = DateTime.parse(expense['dateTime'].toString());
+                String monthStr = "${date.month.toString().padLeft(2, '0')}/${date.year}";
+                monthSet.add(monthStr);
+              }
+            } catch (e) {
+              print("Error parsing date in getListMonth: $e, expense: $expense");
+            }
           }
-    },
-  );
+
+          // Convert Set to List và sort
+          List<String> tempMonths = monthSet.toList();
+          tempMonths.sort((a, b) {
+            var aParts = a.split('/');
+            var bParts = b.split('/');
+            int aYear = int.parse(aParts[1]);
+            int bYear = int.parse(bParts[1]);
+            int aMonth = int.parse(aParts[0]);
+            int bMonth = int.parse(bParts[0]);
+
+            if (aYear != bYear) return aYear.compareTo(bYear);
+            return aMonth.compareTo(bMonth);
+          });
+
+          // ✅ Nếu API trả về rỗng, dùng fallback
+          if (tempMonths.isEmpty) {
+            tempMonths = _generateFallbackMonths();
+          }
+
+          if (!mounted) return;
+          setState(() {
+            months = tempMonths;
+            // Nếu tháng hiện tại chưa có trong list, chọn tháng cuối cùng
+            if (!months.contains(selectedMonth) && months.isNotEmpty) {
+              selectedMonth = months.last;
+            }
+          });
+        }
+      },
+      onError: (error) {
+        print("Error getting months: $error");
+        if (!mounted) return;
+        setState(() {
+          months = _generateFallbackMonths();
+        });
+      },
+    );
+  }
+
+  // ⚠️ Helper: Tạo danh sách tháng fallback
+  List<String> _generateFallbackMonths() {
+    List<String> tempMonths = [];
+    DateTime now = DateTime.now();
+    for (int i = -6; i <= 6; i++) {
+      DateTime d = DateTime(now.year, now.month + i);
+      tempMonths.add("${d.month.toString().padLeft(2, '0')}/${d.year}");
+    }
+    return tempMonths;
   }
   
   void getListTransaction(String nameOfMonth) {
@@ -509,21 +757,153 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
       _loading = true;
     });
     ApiUtil.getInstance()!.get(
-    url: "https://67297e9b6d5fa4901b6d568f.mockapi.io/api/test/transactions",
+    url: "http://localhost:3001/groups/${widget.group.id}/expenses",
     onSuccess: (response) {
-      // giả sử response.data là 1 mảng JSON
       List<dynamic> jsonList = response.data;
       if (!mounted) return;
+      
+      final allTransactions = jsonList.map((json) => TransactionModel.fromJson(json)).toList();
+      
+      // Filter by selected month client-side if API doesn't support it
+      final filtered = allTransactions.where((t) {
+        final monthStr = "${t.dateTime.month.toString().padLeft(2, '0')}/${t.dateTime.year}";
+        return monthStr == nameOfMonth;
+      }).toList();
+
       setState(() {
-        lists =
-            jsonList.map((json) => TransactionModel.fromJson(json)).toList();
+        lists = filtered;
         _loading = false;
+        
+        _totalExpense = 0;
+        _myExpense = 0;
+        for (var t in filtered) {
+          _totalExpense += t.amount;
+          if (t.owner == owner) {
+            _myExpense += t.amount;
+          }
+        }
       });
     },
     onError: (error) {
       print("Lỗi khi gọi API: $error");
+      if (mounted) setState(() => _loading = false);
     },
   );
+  }
+
+  Widget _buildTabItem(String title, int index) {
+    bool isSelected = currentTab == index;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => setState(() => currentTab = index),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          decoration: BoxDecoration(
+            border: Border(
+              bottom: BorderSide(
+                color: isSelected ? AppColors.green : Colors.transparent,
+                width: 2,
+              ),
+            ),
+          ),
+          child: Text(
+            title,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+              color: isSelected ? AppColors.green : Colors.grey,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDebtList() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (myDebts.isNotEmpty) ...[
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+            child: Text("Bạn đang nợ", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+          ),
+          ...myDebts.map((d) => _buildDebtItem(d, false)),
+        ],
+        if (owedToMe.isNotEmpty) ...[
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+            child: Text("Bạn được nợ", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+          ),
+          ...owedToMe.map((d) => _buildDebtItem(d, true)),
+        ],
+        if (myDebts.isEmpty && owedToMe.isEmpty)
+          const Center(
+            child: Padding(
+              padding: EdgeInsets.all(40.0),
+              child: Text("Không có khoản nợ nào."),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildDebtItem(DebtModel debt, bool isOwedToMe) {
+    String memberName = "";
+    final targetId = isOwedToMe ? debt.debtorMemberId : debt.paidByMemberId;
+
+    try {
+      // Dùng groupMembers state thay vì widget.group.members
+      final member = groupMembers.firstWhere((m) => m.id == targetId);
+      memberName = member.name;
+    } catch (e) {
+      // Fallback: hiển thị ID nếu không tìm thấy member
+      memberName = targetId ?? "Unknown";
+      print("⚠️ Không tìm thấy member với ID=$targetId trong ${groupMembers.length} members");
+    }
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 5),
+      padding: const EdgeInsets.all(15),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(debt.expenseTitle, style: const TextStyle(fontWeight: FontWeight.w600)),
+                Text(
+                  isOwedToMe ? "Thành viên: $memberName" : "Trả cho: $memberName",
+                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+              ],
+            ),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                "${Common.formatNumber(debt.shareAmount.toString())} đ",
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: isOwedToMe ? Colors.green : Colors.red,
+                ),
+              ),
+              if (isOwedToMe)
+                TextButton(
+                  onPressed: () => markAsPaid(debt.shareId),
+                  child: const Text("Xác nhận đã nhận", style: TextStyle(fontSize: 12)),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 }
 

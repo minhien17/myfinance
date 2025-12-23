@@ -113,20 +113,16 @@ class _TransactionPageState extends State<TransactionPage> {
 
 
   void getTotal() {
-    ApiUtil.getInstance()!.get(url: "https://67297e9b6d5fa4901b6d568f.mockapi.io/api/test/home", onSuccess: (response){
-      var data = response.data[0];
-      // var data = fakeTransactions["totals"];
-      
-      _balance = data["balance"];
-      _totalIncome = data['income'];
-      _totalExpense = data['expense'];
-      if (!mounted) return;
-      setState(() {
-        // cập nhật state
-      });
-    }, onError: (error){
-      
-    });
+    ApiUtil.getInstance()!.get(
+      url: "http://localhost:3001/account/balance", 
+      onSuccess: (response){
+        if (response.data != null) {
+          _balance = Common.parseDouble(response.data["balance"]);
+          if (mounted) setState(() {});
+        }
+      }, 
+      onError: (error) => print("Balance API error: $error"),
+    );
   }
 
   List<Widget> buildExpenseList(List<TransactionModel> lists, BuildContext context) {
@@ -422,11 +418,25 @@ class _TransactionPageState extends State<TransactionPage> {
           
         ),
                       onPressed: (){
+                        Map<String, double> categoryMap = {};
+                        for (var t in lists) {
+                          if (t.category.toLowerCase() != 'income') {
+                            categoryMap[t.category] = (categoryMap[t.category] ?? 0) + t.amount;
+                          }
+                        }
+                        final mapReport = {
+                          "totals": {
+                            "income": _totalIncome,
+                            "expense": _totalExpense,
+                            "balance": _balance
+                          },
+                          "data": categoryMap
+                        };
                         Navigator.push(
                             context,
                             MaterialPageRoute(
                               builder: (_) => ReportPage(month: selectedMonth, 
-                              transactionsMap: fakeTransactions, // truyền nguyên Map
+                              transactionsMap: mapReport, 
                               ),
                             ),
                           );
@@ -452,49 +462,92 @@ class _TransactionPageState extends State<TransactionPage> {
   
   
   void getListMonth() {
+    // 🔥 Gọi API để lấy danh sách tháng (trả về List of String)
     ApiUtil.getInstance()!.get(
-    url: "http://localhost:3001/transactions/months",
-    onSuccess: (response) {
-      // giả sử response.data là 1 mảng JSON
-      List<dynamic> jsonList = response.data["data"];
-      if (!mounted) return;
-      setState(() {
-        months = jsonList.map((e) => e.toString()).toList();
-      });
-    },
-    onError: (error) {
-      if (error is TimeoutException) {
-            toastInfo(msg: "Time out");
-          } else {
-            toastInfo(msg: error.toString());
+      url: "http://localhost:3001/months",
+      onSuccess: (response) {
+        if (response.data != null && response.data is List) {
+          // ✅ API trả về List<String> kiểu ["12/2025", "11/2025", ...]
+          List<String> tempMonths = [];
+
+          for (var monthStr in response.data) {
+            if (monthStr is String) {
+              tempMonths.add(monthStr);
+            }
           }
-    },
-  );
+
+          // Sort theo năm và tháng
+          tempMonths.sort((a, b) {
+            var aParts = a.split('/');
+            var bParts = b.split('/');
+            int aYear = int.parse(aParts[1]);
+            int bYear = int.parse(bParts[1]);
+            int aMonth = int.parse(aParts[0]);
+            int bMonth = int.parse(bParts[0]);
+
+            if (aYear != bYear) return aYear.compareTo(bYear);
+            return aMonth.compareTo(bMonth);
+          });
+
+          if (!mounted) return;
+          setState(() {
+            months = tempMonths;
+            // Nếu tháng hiện tại chưa có trong list, chọn tháng cuối cùng
+            if (!months.contains(selectedMonth) && months.isNotEmpty) {
+              selectedMonth = months.last;
+            }
+          });
+        }
+      },
+      onError: (error) {
+        print("Error getting months: $error");
+      },
+    );
   }
   
   void getListTransaction(String nameOfMonth) {
+    // nameOfMonth: "MM/YYYY"
+    final parts = nameOfMonth.split('/');
+    if (parts.length != 2) return;
+    
+    _loading = true;
+    if (mounted) setState(() {});
+
     ApiUtil.getInstance()!.get(
-    // url: ApiEndpoint.transacions,
-    url: "http://localhost:3001/transactions",
-    params: {
-      "monthYear":nameOfMonth
-    },
-    onSuccess: (response) {
-      // giả sử response.data là 1 mảng JSON
-      List<dynamic> jsonList = response.data["data"];
-      //['data'];
-      print(jsonList);
-      if (!mounted) return;
-      setState(() {
-        lists =
-            jsonList.map((json) => TransactionModel.fromJson(json)).toList();
+      url: "http://localhost:3001/",
+      params: {
+        "month": int.parse(parts[0]),
+        "year": int.parse(parts[1]),
+      },
+      onSuccess: (response) {
+        if (response.data != null && response.data is List) {
+          final List<dynamic> jsonList = response.data;
+          lists = jsonList
+            .where((json) => json is Map<String, dynamic>)
+            .map((json) => TransactionModel.fromJson(json))
+            .toList();
+          
+          // Tính toán lại tổng thu/chi cho tháng này
+          _totalIncome = 0;
+          _totalExpense = 0;
+          for (var item in lists) {
+            if (item.category.toLowerCase() == 'income') {
+              _totalIncome += item.amount;
+            } else {
+              _totalExpense += item.amount;
+            }
+          }
+
+          _loading = false;
+          if (mounted) setState(() {});
+        }
+      },
+      onError: (error) {
+        print("Lỗi khi gọi API: $error");
         _loading = false;
-      });
-    },
-    onError: (error) {
-      print("Lỗi khi gọi API: $error");
-    },
-  );
+        if (mounted) setState(() {});
+      },
+    );
   }
 }
 

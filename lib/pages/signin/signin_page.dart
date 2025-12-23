@@ -36,34 +36,40 @@ class _SignInScreenState extends State<SignInScreen> {
     return;
   }
 
-  // Kiểm tra định dạng email
-  final emailRegex = RegExp(r'^[^@]+@[^@]+\.[^@]+$');
-  if (!emailRegex.hasMatch(email)) {
-    toastInfo(msg: "Invalid email format");
-    
-    return;
-  }
+  // Bỏ check regex email để cho phép đăng nhập bằng username
+  // final emailRegex = RegExp(r'^[^@]+@[^@]+\.[^@]+$');
+  // if (!emailRegex.hasMatch(email)) {
+  //   toastInfo(msg: "Invalid email format");
+  //   return;
+  // }
 
     showLoading(context);
     ApiUtil.getInstance()!.post(
     body: {
-      "email":email,
-      "password":password
+      "username": email, // Backend mong đợi "username", giá trị lấy từ input (có thể là username hoặc email)
+      "password": password
     },
-    url: "http://172.21.64.1:3002/auth/login",// fixx
-    onSuccess: (response) {
+    url: "http://localhost:3002/auth/login",// fixx
+    onSuccess: (response) async {
       hideLoading();
       // lấy token và user name
       var res = response.data;
-      String token = res["access_token"];
-      String username = res["user"]["username"];
-      String email = res["user"]["email"];
+      String token = res["accessToken"] ?? "";
+      String userId = (res["user"]["id"] ?? res["user"]["_id"] ?? "").toString();
+      String username = res["user"]["username"] ?? "";
+      String email = res["user"]["email"] ?? "";
       
       print(res);
       print(username);
-      SharedPreferenceUtil.saveToken(token);
+      print('Token to save: $token');  // DEBUG
+      await SharedPreferenceUtil.saveToken(token);
+      await SharedPreferenceUtil.saveUserId(userId);
       SharedPreferenceUtil.saveUsername(username);
       SharedPreferenceUtil.saveEmail(email);
+      
+      // Verify token was saved
+      String savedToken = await SharedPreferenceUtil.getToken();
+      print('Token after save: $savedToken');  // DEBUG
       setState(() {
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(builder: (_) => MainPage()),(Route<dynamic> route) => false,

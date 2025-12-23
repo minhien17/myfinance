@@ -330,10 +330,14 @@ Future<void> addExpense({
 
    // 3. Sử dụng Completer để đợi API hoàn thành
   final completer = Completer<void>();
-  // Nếu gọi API
-  ApiUtil.getInstance()!.put(
-    url: "http://localhost:3001/transactions/$id",
-    body:  expense.toJson(),
+  ApiUtil.getInstance()!.patch(
+    url: "http://localhost:3001/$id",
+    body: {
+      "amount": amount,
+      "category": category,
+      "note": note,
+      "dateTime": dateTime.toIso8601String(),
+    },
     onSuccess: (response) {
       
       completer.complete(); 
@@ -379,7 +383,7 @@ Future<void> deleteExpense({
   final completer = Completer<void>();
   // Nếu gọi API
   ApiUtil.getInstance()!.delete(
-    url: "http://localhost:3001/transactions/$id",
+    url: "http://localhost:3001/$id",
     onSuccess: (response) {
       
       print("✅ Delete expense success");

@@ -31,6 +31,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
   late TabController _tabController;
 
+  // ⚠️ Fake data cho biểu đồ pie (giữ lại để hiển thị)
   Map<String, dynamic> fakeTransactions = {
     "month": "10/2025",
     "currency": "VND",
@@ -43,7 +44,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       "home": 4500000,
       "transportation": 900000,
       "other": 500000,
-      // "income": 15000000,
       "houseware": 700000
     },
     "totals": {
@@ -272,8 +272,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                         Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (_) => ReportPage(month: selectedMonth, 
-                              transactionsMap: fakeTransactions, // truyền nguyên Map
+                              builder: (_) => ReportPage(month: selectedMonth,
+                              transactionsMap: fakeTransactions, // ⚠️ Dùng fake data cho pie chart
                               ),
                             ),
                           );
@@ -317,54 +317,60 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                       Padding(
                         padding: EdgeInsets.all(8.0),
                         child: Row(
-                          mainAxisSize: MainAxisSize.min, // Giúp Row chỉ chiếm không gian cần thiết
+                          mainAxisSize: MainAxisSize.min,
                           children: [
-                            // 1. Mục "This month" (Chấm tròn Đỏ)
-                            Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                // Chấm tròn Đỏ
-                                Padding(
-                                  padding: EdgeInsets.only(right: 8),
-                                  child: Container(
-                                    width: 15,
-                                    height: 15,
-                                    decoration: BoxDecoration(
-                                      color: Colors.red,
-                                      shape: BoxShape.circle,
+                            // 1. Mục "Tháng này" (Chấm tròn Đỏ)
+                            Expanded(
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Padding(
+                                    padding: const EdgeInsets.only(right: 8),
+                                    child: Container(
+                                      width: 15,
+                                      height: 15,
+                                      decoration: const BoxDecoration(
+                                        color: Colors.red,
+                                        shape: BoxShape.circle,
+                                      ),
                                     ),
                                   ),
-                                ),
-                                // Văn bản "This month"
-                                Text(
-                                  'Tháng này',
-                                  
-                                ),
-                              ],
+                                  const Flexible(
+                                    child: Text(
+                                      'Tháng này',
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(fontSize: 12),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
-
-                            SizedBox(width: 24.0), // Khoảng cách giữa hai mục
-
-                            // 2. Mục "Previous 3-month average" (Chấm tròn Xám nhạt)
-                            Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                // Chấm tròn Xám nhạt
-                                Padding(
-                                  padding: EdgeInsets.only(right: 8),
-                                  child: Container(
-                                    width: 15,
-                                    height: 15,
-                                    decoration: BoxDecoration(
-                                      color: Colors.grey, // Màu xám nhạt
-                                      shape: BoxShape.circle,
+                            const SizedBox(width: 10),
+                            // 2. Mục "Trung bình 3 tháng trước"
+                            Expanded(
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Padding(
+                                    padding: const EdgeInsets.only(right: 8),
+                                    child: Container(
+                                      width: 15,
+                                      height: 15,
+                                      decoration: const BoxDecoration(
+                                        color: Colors.grey,
+                                        shape: BoxShape.circle,
+                                      ),
                                     ),
                                   ),
-                                ),
-                                Text(
-                                  'Trung bình 3 tháng trước',
-                                ),
-                              ],
+                                  const Flexible(
+                                    child: Text(
+                                      'Trung bình 3 tháng trước',
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(fontSize: 12),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ],
                         ),
@@ -388,7 +394,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                             context,
                             MaterialPageRoute(
                               builder: (_) => ReportPage(month: selectedMonth, 
-                              transactionsMap: fakeTransactions, // truyền nguyên Map
+                              transactionsMap: _getReportData(), 
                               ),
                             ),
                           );
@@ -430,59 +436,76 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     );
   }
   
+  List<TransactionModel> _allTransactions = [];
+
   void getApi() {
+    // 1. Lấy số dư thực tế
     ApiUtil.getInstance()!.get(
-      url: "https://67297e9b6d5fa4901b6d568f.mockapi.io/api/test/home",
+      url: "http://localhost:3001/account/balance",
       onSuccess: (response) {
-        if (response.data != null && response.data is List && response.data.isNotEmpty) {
-          
-          // Lấy phần tử đầu tiên của list
-          // var data = response.data[0];
-
-          // report
-          var data = fakeTransactions;
-          listTop5 = getListTop5(fakeTransactions);
-
-          // Hứng dữ liệu từ API, kiểm tra null
-          _balance = data['totals']?['balance'] ?? 0;
-          _totalIncome = data['totals']?['income'] ?? 0;
-          _totalExpense = data['totals']?['expense'] ?? 0;
-
-          if (!mounted) return;
-          setState(() {});
+        if (response.data != null) {
+          _balance = Common.parseDouble(response.data['balance']);
+          if (mounted) setState(() {});
         }
       },
-      onError: (error) {
-        print("API error: $error");
+      onError: (error) => print("Balance API error: $error"),
+    );
+
+    // 2. Lấy danh sách giao dịch tháng hiện tại để tính toán
+    ApiUtil.getInstance()!.get(
+      url: "http://localhost:3001/months",
+      params: {
+        "month": now.month,
+        "year": now.year
       },
+      onSuccess: (response) {
+        if (response.data != null && response.data is List) {
+          final List<dynamic> jsonList = response.data;
+          _allTransactions = jsonList.map((json) => TransactionModel.fromJson(json)).toList();
+          
+          _totalIncome = 0;
+          _totalExpense = 0;
+          
+          for (var item in _allTransactions) {
+            if (item.category.toLowerCase() == "income") {
+              _totalIncome += item.amount;
+            } else {
+              _totalExpense += item.amount;
+            }
+          }
+
+          // Cập nhật Top 5 chi tiêu (giảm dần theo amount, không tính income)
+          final expenseList = _allTransactions.where((t) => t.category.toLowerCase() != "income").toList();
+          expenseList.sort((a, b) => b.amount.compareTo(a.amount));
+          listTop5 = expenseList.take(5).toList();
+
+          if (mounted) setState(() {});
+        }
+      },
+      onError: (error) => print("Transactions API error: $error"),
     );
   }
-  
+
+  Map<String, dynamic> _getReportData() {
+    Map<String, double> categoryMap = {};
+    for (var t in _allTransactions) {
+      if (t.category.toLowerCase() != 'income') {
+        categoryMap[t.category] = (categoryMap[t.category] ?? 0) + t.amount;
+      }
+    }
+    return {
+      "totals": {
+        "income": _totalIncome,
+        "expense": _totalExpense,
+        "balance": _balance
+      },
+      "data": categoryMap
+    };
+  }
+
   void getDataChart() {
-    ApiUtil.getInstance()!.get(
-      url: "https://67297e9b6d5fa4901b6d568f.mockapi.io/api/test/home",
-      onSuccess: (response) {
-        if (response.data != null && response.data is List && response.data.isNotEmpty) {
-          
-          // Lấy phần tử đầu tiên của list
-          // var data = response.data[0];
-
-          // report
-          var data = fakeTransactions;
-
-          // Hứng dữ liệu từ API, kiểm tra null
-          _balance = data['totals']?['balance'] ?? 0;
-          _totalIncome = data['totals']?['income'] ?? 0;
-          _totalExpense = data['totals']?['expense'] ?? 0;
-
-          if (!mounted) return;
-          setState(() {});
-        }
-      },
-      onError: (error) {
-        print("API error: $error");
-      },
-    );
+    // TODO: Implement real chart data fetching if backend supports daily totals
+    // For now, keeping the fake data logic or calculating from transaction list
   }
   List<Widget> buildExpenseList(List<TransactionModel> lists, BuildContext context) {
   
