@@ -13,21 +13,15 @@ class JoinGroupScreen extends StatefulWidget {
 }
 
 class _JoinGroupScreenState extends State<JoinGroupScreen> {
-  // Trạng thái hiện tại: 0 = Nhập mã, 1 = Chọn thành viên
+  // Trạng thái hiện tại: 0 = Nhập mã, 1 = Nhập tên
   int _currentStep = 0;
   bool _isLoading = false;
 
   final TextEditingController _codeController = TextEditingController();
-  
+  final TextEditingController _nameController = TextEditingController();
+
   // Dữ liệu nhóm sau khi tìm thấy
   Group? _foundGroup;
-  
-  // Danh sách thành viên để hiển thị (đã filter những người chưa join)
-  List<Member> _membersToSelect = [];
-  
-  // ID thành viên mà người dùng chọn (chính là họ)
-  String? _selectedMemberId;
-  String? _selectedMemberName;
 
   // --- LOGIC GIẢ LẬP API ---
 
@@ -47,23 +41,20 @@ class _JoinGroupScreenState extends State<JoinGroupScreen> {
       url: "http://localhost:3004/join/$code",
       onSuccess: (response) {
         setState(() => _isLoading = false);
-        
+
         try {
           final item = response.data;
-          
+
           List<Member> allMembers = [];
-          List<Member> unjoinedMembers = [];
           int joinedCount = 0;
-          
+
           if (item["members"] != null) {
             for (var m in item["members"]) {
               final member = Member.fromJson(m is Map ? Map<String, dynamic>.from(m) : {});
               allMembers.add(member);
-              
+
               if (member.joined) {
                 joinedCount++;
-              } else {
-                unjoinedMembers.add(member);
               }
             }
           }
@@ -79,8 +70,7 @@ class _JoinGroupScreenState extends State<JoinGroupScreen> {
 
           setState(() {
             _foundGroup = group;
-            _membersToSelect = unjoinedMembers;
-            _currentStep = 1; // Chuyển sang bước chọn thành viên
+            _currentStep = 1; // Chuyển sang bước nhập tên
           });
 
         } catch (e) {
@@ -101,9 +91,18 @@ class _JoinGroupScreenState extends State<JoinGroupScreen> {
 
   // Bước 2: Xác nhận tham gia
   void _confirmJoin() {
-    if (_selectedMemberId == null || _foundGroup == null) {
+    final memberName = _nameController.text.trim();
+
+    if (memberName.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Vui lòng chọn tên của bạn trong danh sách.')),
+        const SnackBar(content: Text('Vui lòng nhập tên của bạn')),
+      );
+      return;
+    }
+
+    if (_foundGroup == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Không tìm thấy thông tin nhóm')),
       );
       return;
     }
@@ -114,24 +113,22 @@ class _JoinGroupScreenState extends State<JoinGroupScreen> {
       url: "http://localhost:3004/join",
       body: {
         "groupCode": _foundGroup!.code,
-        "memberId": _selectedMemberId
+        "memberName": memberName
       },
       onSuccess: (response) {
         setState(() => _isLoading = false);
-        
-        final selectedMember = _foundGroup!.members.firstWhere((m) => m.id == _selectedMemberId);
-        
+
         // Chuyển sang trang chi tiết nhóm
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-              builder: (context) => TransactionGroupPage(
-                group: _foundGroup!,
-                joinedMemberName: selectedMember.name,
-              ),
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => TransactionGroupPage(
+              group: _foundGroup!,
+              joinedMemberName: memberName,
             ),
-          );
-        
+          ),
+        );
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Đã tham gia nhóm ${_foundGroup?.name} thành công!')),
         );
@@ -160,7 +157,7 @@ class _JoinGroupScreenState extends State<JoinGroupScreen> {
               setState(() {
                 _currentStep = 0;
                 _foundGroup = null;
-                _selectedMemberId = null;
+                _nameController.clear();
               });
             } else {
               Navigator.pop(context);
@@ -179,7 +176,7 @@ class _JoinGroupScreenState extends State<JoinGroupScreen> {
               
               // Nội dung chính thay đổi theo bước
               Expanded(
-                child: _currentStep == 0 ? _buildStep1InputCode() : _buildStep2SelectMember(),
+                child: _currentStep == 0 ? _buildStep1InputCode() : _buildStep2InputName(),
               ),
             ],
           ),
@@ -246,8 +243,8 @@ class _JoinGroupScreenState extends State<JoinGroupScreen> {
     );
   }
 
-  // BƯỚC 2: CHỌN THÀNH VIÊN
-  Widget _buildStep2SelectMember() {
+  // BƯỚC 2: NHẬP TÊN
+  Widget _buildStep2InputName() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -277,51 +274,33 @@ class _JoinGroupScreenState extends State<JoinGroupScreen> {
         ),
         const SizedBox(height: 24),
         const Text(
-          'Bạn là ai trong danh sách này?',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+          'Nhập tên của bạn',
+          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 8),
-        
-        // Danh sách thành viên để chọn
-        Expanded(
-          child: ListView.separated(
-            itemCount: _membersToSelect.length,
-            separatorBuilder: (ctx, index) => const Divider(),
-            itemBuilder: (context, index) {
-              final member = _membersToSelect[index];
-              final isSelected = _selectedMemberId == member.id;
-
-              return ListTile(
-                onTap: () {
-                  setState(() {
-                    _selectedMemberId = member.id;
-                    _selectedMemberName = member.name;
-                  });
-                },
-                
-                title: Text(
-                  member.name,
-                  style: TextStyle(
-                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                    color: isSelected ? Colors.blue : Colors.black,
-                  ),
-                ),
-                trailing: isSelected
-                    ? const Icon(Icons.radio_button_checked, color: Colors.blue)
-                    : const Icon(Icons.radio_button_off, color: Colors.grey),
-                tileColor: isSelected ? Colors.blue.withOpacity(0.05) : null,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              );
-            },
-          ),
+        const Text(
+          'Tên này sẽ được hiển thị cho các thành viên khác trong nhóm.',
+          style: TextStyle(color: Colors.grey),
         ),
-        
-        const SizedBox(height: 16),
+        const SizedBox(height: 24),
+        TextField(
+          controller: _nameController,
+          decoration: const InputDecoration(
+            labelText: 'Tên của bạn',
+            border: OutlineInputBorder(),
+            prefixIcon: Icon(Icons.person),
+          ),
+          textCapitalization: TextCapitalization.words,
+        ),
+        const Spacer(),
         SizedBox(
           height: 50,
           child: ElevatedButton(
-            onPressed: _confirmJoin,
-            child: const Text('Xác nhận tham gia'),
+            onPressed: _isLoading ? null : _confirmJoin,
+            child: _isLoading
+                ? const SizedBox(
+                    width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white))
+                : const Text('Tham gia nhóm'),
           ),
         ),
       ],

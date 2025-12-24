@@ -180,6 +180,7 @@ class _AddTransactionGroupPageState extends State<AddTransactionGroupPage> {
     final body = {
       "title": note.isEmpty ? category : note,
       "amount": amount,
+      "category": category, // Thêm category
       "splitType": "equal",
       "paidByMemberId": selectedMemberId,
       "participantMemberIds": allParticipants, // Bao gồm cả người trả

@@ -31,25 +31,14 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
   late TabController _tabController;
 
-  // ⚠️ Fake data cho biểu đồ pie (giữ lại để hiển thị)
-  Map<String, dynamic> fakeTransactions = {
-    "month": "10/2025",
+  // Dữ liệu summary cho biểu đồ pie chart
+  Map<String, dynamic> summaryData = {
+    "month": "",
     "currency": "VND",
-    "data": {
-      "food": 3500000,
-      "donation": 200000,
-      "education": 1200000,
-      "entertainment": 800000,
-      "family": 1600000,
-      "home": 4500000,
-      "transportation": 900000,
-      "other": 500000,
-      "houseware": 700000
-    },
+    "data": {},
     "totals": {
-      "expense": 13700000,
-      "income": 15000000,
-      "balance": 1300000
+      "expense": 0,
+      "income": 0
     }
   };
 
@@ -67,7 +56,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     return top5.map((e) {
       return TransactionModel.full(
         category: e.key,
-        amount: e.value,
+        amount: Common.parseDouble(e.value), // Convert int/double to double
       );
     }).toList();
   }
@@ -273,7 +262,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                             context,
                             MaterialPageRoute(
                               builder: (_) => ReportPage(month: selectedMonth,
-                              transactionsMap: fakeTransactions, // ⚠️ Dùng fake data cho pie chart
+                              transactionsMap: summaryData, // Dữ liệu từ API /transactions/summary
                               ),
                             ),
                           );
@@ -462,22 +451,23 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         if (response.data != null && response.data is List) {
           final List<dynamic> jsonList = response.data;
           _allTransactions = jsonList.map((json) => TransactionModel.fromJson(json)).toList();
-          
-          _totalIncome = 0;
-          _totalExpense = 0;
-          
-          for (var item in _allTransactions) {
-            if (item.category.toLowerCase() == "income") {
-              _totalIncome += item.amount;
-            } else {
-              _totalExpense += item.amount;
-            }
-          }
 
-          // Cập nhật Top 5 chi tiêu (giảm dần theo amount, không tính income)
-          final expenseList = _allTransactions.where((t) => t.category.toLowerCase() != "income").toList();
-          expenseList.sort((a, b) => b.amount.compareTo(a.amount));
-          listTop5 = expenseList.take(5).toList();
+          // Tổng thu chi đã được tính từ summary API trong getDataChart()
+          // _totalIncome = 0;
+          // _totalExpense = 0;
+
+          // for (var item in _allTransactions) {
+          //   if (item.category.toLowerCase() == "income") {
+          //     _totalIncome += item.amount;
+          //   } else {
+          //     _totalExpense += item.amount;
+          //   }
+          // }
+
+          // Cập nhật Top 5 chi tiêu - được tính từ summary API trong getDataChart()
+          // final expenseList = _allTransactions.where((t) => t.category.toLowerCase() != "income").toList();
+          // expenseList.sort((a, b) => b.amount.compareTo(a.amount));
+          // listTop5 = expenseList.take(5).toList();
 
           if (mounted) setState(() {});
         }
@@ -504,8 +494,32 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   }
 
   void getDataChart() {
-    // TODO: Implement real chart data fetching if backend supports daily totals
-    // For now, keeping the fake data logic or calculating from transaction list
+    ApiUtil.getInstance()!.get(
+      url: "http://localhost:3003/transactions/summary",
+      params: {
+        "monthYear": selectedMonth, // Format: "MM/YYYY"
+      },
+      onSuccess: (response) {
+        print("✅ Summary API response: ${response.data}");
+
+        if (response.data != null) {
+          if (mounted) {
+            setState(() {
+              summaryData = response.data;
+              listTop5 = getListTop5(summaryData);
+              // Cập nhật tổng thu chi từ summary API
+              _totalExpense = Common.parseDouble(summaryData['totals']['expense']);
+              _totalIncome = Common.parseDouble(summaryData['totals']['income']);
+
+              print("💰 Updated from summary API - Expense: $_totalExpense, Income: $_totalIncome");
+            });
+          }
+        }
+      },
+      onError: (error) {
+        print("❌ Summary API error: $error");
+      },
+    );
   }
   List<Widget> buildExpenseList(List<TransactionModel> lists, BuildContext context) {
   

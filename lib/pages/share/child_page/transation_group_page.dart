@@ -8,9 +8,11 @@ import 'package:my_finance/common/loading_dialog.dart';
 import 'package:my_finance/models/debt_model.dart';
 import 'package:my_finance/models/list_icon.dart';
 import 'package:my_finance/models/transaction_model.dart';
+import 'package:my_finance/models/payment_history_model.dart';
 import 'package:my_finance/pages/share/child_page/add_transation_group_page.dart';
 import 'package:my_finance/pages/share/child_page/edit_transation_group_page.dart';
 import 'package:my_finance/pages/share/child_page/view_report_page.dart';
+import 'package:my_finance/pages/share/child_page/view_members_page.dart';
 import 'package:my_finance/res/app_colors.dart';
 import 'package:my_finance/shared_preference.dart';
 import 'package:my_finance/utils.dart';
@@ -35,6 +37,7 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
   
   List<String> months = ["8/2025", "9/2025", "10/2025", "11/2025"]; // danh sách tháng lấy từ API
   List<TransactionModel> lists = [];
+  List<PaymentItem> paymentsList = []; // Danh sách payment từ payment-history API
   bool _loading = true;
 
   List<DebtModel> myDebts = [];
@@ -43,6 +46,7 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
 
   double _totalExpense = 0;
   double _myExpense = 0;
+  PaymentSummary? paymentSummary; // Tổng kết từ payment-history API
   String owner = '';
   String currentUserId = ''; // 🔥 userId của người đang đăng nhập
 
@@ -51,17 +55,33 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
   void reLoadPage(){
     getListMonth();
     getListTransaction(selectedMonth);
-    fetchDebts();
+    fetchDebts(selectedMonth);
   }
 
-  Future<void> fetchDebts() async {
+  Future<void> fetchDebts(String monthYear) async {
+    // Parse monthYear format "MM/YYYY" to get month and year
+    final parts = monthYear.split('/');
+    if (parts.length != 2) return;
+
+    final month = int.tryParse(parts[0]);
+    final year = int.tryParse(parts[1]);
+    if (month == null || year == null) return;
+
     // GET /groups/{groupId}/expenses/my-debts
     ApiUtil.getInstance()!.get(
       url: "http://localhost:3001/groups/${widget.group.id}/expenses/my-debts",
       onSuccess: (response) {
         final List<dynamic> data = response.data;
+        final allDebts = data.map((e) => DebtModel.fromJson(e)).toList();
+
+        // Filter by selected month
+        final filteredDebts = allDebts.where((debt) {
+          if (debt.createdAt == null) return false;
+          return debt.createdAt!.month == month && debt.createdAt!.year == year;
+        }).toList();
+
         setState(() {
-          myDebts = data.map((e) => DebtModel.fromJson(e)).toList();
+          myDebts = filteredDebts;
         });
       },
       onError: (err) => print("Fetch debts error: $err"),
@@ -72,8 +92,16 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
       url: "http://localhost:3001/groups/${widget.group.id}/expenses/owed-to-me",
       onSuccess: (response) {
         final List<dynamic> data = response.data;
+        final allOwed = data.map((e) => DebtModel.fromJson(e)).toList();
+
+        // Filter by selected month
+        final filteredOwed = allOwed.where((debt) {
+          if (debt.createdAt == null) return false;
+          return debt.createdAt!.month == month && debt.createdAt!.year == year;
+        }).toList();
+
         setState(() {
-          owedToMe = data.map((e) => DebtModel.fromJson(e)).toList();
+          owedToMe = filteredOwed;
         });
       },
       onError: (err) => print("Fetch owed error: $err"),
@@ -438,6 +466,127 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
     return containers;
   }
 
+  // 🔥 Hàm hiển thị payment history theo ngày
+  List<Widget> buildPaymentHistoryList(List<PaymentItem> payments, BuildContext context) {
+    // 1️⃣ Gom nhóm theo ngày (YYYY-MM-DD)
+    Map<String, List<PaymentItem>> grouped = {};
+    for (var payment in payments) {
+      String dateKey = payment.date.toIso8601String().split('T')[0];
+      grouped.putIfAbsent(dateKey, () => []);
+      grouped[dateKey]!.add(payment);
+    }
+
+    // 2️⃣ Tạo danh sách Widget cho từng nhóm
+    List<Widget> containers = grouped.entries.map((entry) {
+      String dateKey = entry.key;
+      List<PaymentItem> dailyPayments = entry.value;
+
+      // Chuyển dateKey -> DateTime để hiển thị
+      DateTime date = DateTime.parse(dateKey);
+
+      // ✅ Tính tổng tiền trong ngày
+      double totalAmount = dailyPayments.fold(
+        0,
+        (sum, p) => sum + p.amount,
+      );
+
+      return Container(
+        margin: const EdgeInsets.only(bottom: 5),
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 15),
+        decoration: BoxDecoration(
+          color: Colors.grey[100],
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // 🧾 Header ngày + tổng tiền
+            Row(
+              children: [
+                Text(
+                  "${date.day}/${date.month}/${date.year}",
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  Common.formatNumber(totalAmount.toString()),
+                  style: const TextStyle(
+                    fontSize: 16,
+                    color: Colors.black,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(width: 5),
+              ],
+            ),
+
+            const SizedBox(height: 10),
+
+            // 3️⃣ Danh sách payment trong ngày đó
+            ...dailyPayments.map((payment) {
+              // Xác định màu dựa trên type (paid = đỏ, received = xanh)
+              final Color amountColor = payment.type == "paid" ? Colors.red : Colors.green;
+              final String typeText = payment.type == "paid" ? "Đã trả" : "Đã nhận";
+
+              return Container(
+                margin: const EdgeInsets.only(bottom: 10),
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(10),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Colors.black12,
+                      offset: Offset(0, 2),
+                      blurRadius: 4,
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    itemLeading(payment.category),
+                    const SizedBox(width: 20),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            payment.expenseTitle,
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            "$typeText • ${payment.from}",
+                            style: const TextStyle(color: Colors.grey, fontSize: 14),
+                          ),
+                          if (payment.note != null && payment.note!.isNotEmpty)
+                            Text(
+                              payment.note!,
+                              style: const TextStyle(color: Colors.grey, fontSize: 12),
+                            ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 20),
+                    Text(
+                      Common.formatNumber(payment.amount.toString()),
+                      style: TextStyle(color: amountColor, fontSize: 16, fontWeight: FontWeight.w600),
+                    ),
+                  ],
+                ),
+              );
+            }),
+          ],
+        ),
+      );
+    }).toList();
+
+    return containers;
+  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -550,6 +699,7 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
 
                         // 🔸 Gọi API khi đổi tháng
                         getListTransaction(selectedMonth);
+                        fetchDebts(selectedMonth);
                       },
                       child: Container(
                         width: width / 3,
@@ -636,7 +786,7 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
                       ),
                       const SizedBox(width: 20,),
 
-                      // 🔹 Nút View Detail
+                      // 🔹 Nút View Members
                       Expanded(
                         flex: 1,
                         child: ElevatedButton(
@@ -651,11 +801,19 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
                           onPressed: () {
                             Navigator.push(
                               context,
-                              MaterialPageRoute(builder: (context) => ViewReportPage(groupId: widget.group.id, groupName: widget.group.name)),
+                              MaterialPageRoute(
+                                builder: (context) => ViewMembersPage(
+                                  groupName: widget.group.name,
+                                  members: groupMembers.isNotEmpty
+                                      ? groupMembers
+                                      : widget.group.members,
+                                  currentUserId: currentUserId,
+                                ),
+                              ),
                             );
                           },
                           child: const Text(
-                            "Xem chi tiết",
+                            "thành viên",
                             style: TextStyle(fontSize: 16),
                           ),
                         ),
@@ -678,10 +836,10 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
               Container(
                 padding: const EdgeInsets.only(top: 15),
                 color: AppColors.background,
-                child: _loading 
-                  ? const Center(child: CircularProgressIndicator()) 
-                  : (currentTab == 0 
-                      ? Column(children: [...buildExpenseList(lists, context)])
+                child: _loading
+                  ? const Center(child: CircularProgressIndicator())
+                  : (currentTab == 0
+                      ? Column(children: [...buildPaymentHistoryList(paymentsList, context)])
                       : _buildDebtList()),
               ),
             ]),
@@ -769,39 +927,35 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
     setState(() {
       _loading = true;
     });
-    ApiUtil.getInstance()!.get(
-    url: "http://localhost:3001/groups/${widget.group.id}/expenses",
-    onSuccess: (response) {
-      List<dynamic> jsonList = response.data;
-      if (!mounted) return;
-      
-      final allTransactions = jsonList.map((json) => TransactionModel.fromJson(json)).toList();
-      
-      // Filter by selected month client-side if API doesn't support it
-      final filtered = allTransactions.where((t) {
-        final monthStr = "${t.dateTime.month.toString().padLeft(2, '0')}/${t.dateTime.year}";
-        return monthStr == nameOfMonth;
-      }).toList();
 
-      setState(() {
-        lists = filtered;
-        _loading = false;
-        
-        _totalExpense = 0;
-        _myExpense = 0;
-        for (var t in filtered) {
-          _totalExpense += t.amount;
-          if (t.owner == owner) {
-            _myExpense += t.amount;
-          }
-        }
-      });
-    },
-    onError: (error) {
-      print("Lỗi khi gọi API: $error");
-      if (mounted) setState(() => _loading = false);
-    },
-  );
+    // 🔥 Gọi API payment-history mới
+    ApiUtil.getInstance()!.get(
+      url: "http://localhost:3001/groups/${widget.group.id}/expenses/payment-history",
+      params: {
+        "monthYear": nameOfMonth, // Format: "MM/YYYY"
+      },
+      onSuccess: (response) {
+        if (!mounted) return;
+
+        print("✅ Payment history response: ${response.data}");
+
+        final paymentHistory = PaymentHistoryModel.fromJson(response.data);
+
+        setState(() {
+          paymentsList = paymentHistory.payments;
+          paymentSummary = paymentHistory.summary;
+          _loading = false;
+
+          // Cập nhật tổng chi tiêu từ summary
+          _totalExpense = paymentHistory.summary.totalPaid;
+          _myExpense = paymentHistory.summary.totalPaid; // Hoặc có thể lấy từ net
+        });
+      },
+      onError: (error) {
+        print("❌ Lỗi khi gọi payment-history API: $error");
+        if (mounted) setState(() => _loading = false);
+      },
+    );
   }
 
   Widget _buildTabItem(String title, int index) {
@@ -834,32 +988,105 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
   }
 
   Widget _buildDebtList() {
+    // Gom nhóm myDebts và owedToMe theo ngày
+    List<Widget> widgets = [];
+
+    // 1. Nhóm "Bạn đang nợ" theo ngày
+    if (myDebts.isNotEmpty) {
+      widgets.add(const Padding(
+        padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+        child: Text("Bạn đang nợ", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+      ));
+      widgets.addAll(_buildDebtsByDate(myDebts, false));
+    }
+
+    // 2. Nhóm "Bạn được nợ" theo ngày
+    if (owedToMe.isNotEmpty) {
+      widgets.add(const Padding(
+        padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+        child: Text("Bạn được nợ", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+      ));
+      widgets.addAll(_buildDebtsByDate(owedToMe, true));
+    }
+
+    // 3. Empty state
+    if (myDebts.isEmpty && owedToMe.isEmpty) {
+      widgets.add(const Center(
+        child: Padding(
+          padding: EdgeInsets.all(40.0),
+          child: Text("Không có khoản nợ nào."),
+        ),
+      ));
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        if (myDebts.isNotEmpty) ...[
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-            child: Text("Bạn đang nợ", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-          ),
-          ...myDebts.map((d) => _buildDebtItem(d, false)),
-        ],
-        if (owedToMe.isNotEmpty) ...[
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-            child: Text("Bạn được nợ", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-          ),
-          ...owedToMe.map((d) => _buildDebtItem(d, true)),
-        ],
-        if (myDebts.isEmpty && owedToMe.isEmpty)
-          const Center(
-            child: Padding(
-              padding: EdgeInsets.all(40.0),
-              child: Text("Không có khoản nợ nào."),
-            ),
-          ),
-      ],
+      children: widgets,
     );
+  }
+
+  // Hàm nhóm debts theo ngày
+  List<Widget> _buildDebtsByDate(List<DebtModel> debts, bool isOwedToMe) {
+    // Gom nhóm theo ngày
+    Map<String, List<DebtModel>> grouped = {};
+    for (var debt in debts) {
+      if (debt.createdAt != null) {
+        String dateKey = debt.createdAt!.toIso8601String().split('T')[0];
+        grouped.putIfAbsent(dateKey, () => []);
+        grouped[dateKey]!.add(debt);
+      }
+    }
+
+    // Tạo widget cho từng nhóm
+    return grouped.entries.map((entry) {
+      String dateKey = entry.key;
+      List<DebtModel> dailyDebts = entry.value;
+      DateTime date = DateTime.parse(dateKey);
+
+      // Tính tổng tiền trong ngày
+      double totalAmount = dailyDebts.fold(0, (sum, d) => sum + d.shareAmount);
+
+      return Container(
+        margin: const EdgeInsets.only(bottom: 5),
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 15),
+        decoration: BoxDecoration(
+          color: Colors.grey[100],
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header ngày + tổng tiền
+            Row(
+              children: [
+                Text(
+                  "${date.day}/${date.month}/${date.year}",
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  Common.formatNumber(totalAmount.toString()),
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: isOwedToMe ? Colors.green : Colors.red,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(width: 5),
+              ],
+            ),
+
+            const SizedBox(height: 10),
+
+            // Danh sách debts trong ngày
+            ...dailyDebts.map((debt) => _buildDebtItem(debt, isOwedToMe)),
+          ],
+        ),
+      );
+    }).toList();
   }
 
   Widget _buildDebtItem(DebtModel debt, bool isOwedToMe) {
@@ -880,7 +1107,7 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
     }
 
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 5),
+      margin: const EdgeInsets.only(bottom: 5),
       padding: const EdgeInsets.all(15),
       decoration: BoxDecoration(
         color: Colors.white,
