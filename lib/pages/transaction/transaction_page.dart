@@ -459,48 +459,24 @@ class _TransactionPageState extends State<TransactionPage> {
       ),
     );
   }
-  
-  
+
+
   void getListMonth() {
-    // 🔥 Gọi API để lấy danh sách tháng (trả về List of String)
     ApiUtil.getInstance()!.get(
       url: "http://localhost:3001/months",
       onSuccess: (response) {
-        if (response.data != null && response.data is List) {
-          // ✅ API trả về List<String> kiểu ["12/2025", "11/2025", ...]
-          List<String> tempMonths = [];
-
-          for (var monthStr in response.data) {
-            if (monthStr is String) {
-              tempMonths.add(monthStr);
-            }
-          }
-
-          // Sort theo năm và tháng
-          tempMonths.sort((a, b) {
-            var aParts = a.split('/');
-            var bParts = b.split('/');
-            int aYear = int.parse(aParts[1]);
-            int bYear = int.parse(bParts[1]);
-            int aMonth = int.parse(aParts[0]);
-            int bMonth = int.parse(bParts[0]);
-
-            if (aYear != bYear) return aYear.compareTo(bYear);
-            return aMonth.compareTo(bMonth);
-          });
-
-          if (!mounted) return;
-          setState(() {
-            months = tempMonths;
-            // Nếu tháng hiện tại chưa có trong list, chọn tháng cuối cùng
-            if (!months.contains(selectedMonth) && months.isNotEmpty) {
-              selectedMonth = months.last;
-            }
-          });
-        }
+        List<dynamic> jsonList = response.data;
+        if (!mounted) return;
+        setState(() {
+          months = jsonList.map((e) => e.toString()).toList();
+        });
       },
       onError: (error) {
-        print("Error getting months: $error");
+        if (error is TimeoutException) {
+          toastInfo(msg: "Time out");
+        } else {
+          toastInfo(msg: error.toString());
+        }
       },
     );
   }
@@ -564,3 +540,4 @@ Image itemLeading(String type) {
     width: 30,
   );
 }
+

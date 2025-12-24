@@ -34,7 +34,8 @@ class _AddTransactionGroupPageState extends State<AddTransactionGroupPage> {
 
   List<Member> members = [];
   String selectedMemberId = ''; // member ID
-  
+  String currentUserId = ''; // 🔥 userId của người đang đăng nhập
+
   bool isSplitBill = false;
   List<String> participantIds = []; // List participant IDs (member IDs)
 
@@ -59,6 +60,13 @@ class _AddTransactionGroupPageState extends State<AddTransactionGroupPage> {
       final userId = await SharedPreferenceUtil.getUserId();
       print("🔍 DEBUG - Current userId: $userId");
       print("🔍 DEBUG - Members: ${members.map((m) => 'id=${m.id}, name=${m.name}, userId=${m.userId}').toList()}");
+
+      // 🔥 Lưu userId vào state để dùng cho việc hiển thị "(bạn)"
+      if (mounted) {
+        setState(() {
+          currentUserId = userId;
+        });
+      }
 
       if (userId != null && userId.isNotEmpty) {
         // Tìm member có userId trùng với user hiện tại
@@ -155,13 +163,18 @@ class _AddTransactionGroupPageState extends State<AddTransactionGroupPage> {
       return;
     }
 
+    // 🔥 Không bắt buộc phải chọn người nợ
+    // Nếu không chọn ai, tức là người trả chi tiền cho chính mình
+    // Nếu có chọn, người trả sẽ được tự động thêm vào participants
+
     // API: POST /groups/{groupId}/expenses
     showLoading(thiscontext);
 
-    // ✅ Ensure participantIds bao gồm paidByMemberId
-    List<String> finalParticipants = List.from(participantIds);
-    if (!finalParticipants.contains(selectedMemberId)) {
-      finalParticipants.add(selectedMemberId);
+    // 🔥 API yêu cầu paidByMemberId phải nằm trong participantMemberIds
+    // Tạo list participants bao gồm người trả + người nợ
+    List<String> allParticipants = [...participantIds];
+    if (!allParticipants.contains(selectedMemberId)) {
+      allParticipants.add(selectedMemberId);
     }
 
     final body = {
@@ -169,7 +182,7 @@ class _AddTransactionGroupPageState extends State<AddTransactionGroupPage> {
       "amount": amount,
       "splitType": "equal",
       "paidByMemberId": selectedMemberId,
-      "participantMemberIds": finalParticipants,
+      "participantMemberIds": allParticipants, // Bao gồm cả người trả
     };
 
     print("🔍 DEBUG - Request body: $body");
@@ -401,11 +414,11 @@ class _AddTransactionGroupPageState extends State<AddTransactionGroupPage> {
                           onChanged: (val) {
                             setState(() {
                               isSplitBill = val;
-                              if (isSplitBill) {
-                                participantIds = members.map((m) => m.id).toList();
-                              } else {
+                              if (!isSplitBill) {
+                                // Khi tắt chia tiền, clear danh sách người nợ
                                 participantIds = [];
                               }
+                              // Khi bật, để trống cho user tự chọn
                             });
                           },
                           activeColor: Colors.green,
@@ -415,11 +428,92 @@ class _AddTransactionGroupPageState extends State<AddTransactionGroupPage> {
                   ),
 
                   if (isSplitBill)
-                    const Padding(
-                      padding: EdgeInsets.only(left: 43, bottom: 10),
-                      child: Text(
-                        "Chi phí sẽ được chia đều cho tất cả thành viên trong nhóm.",
-                        style: TextStyle(color: Colors.grey, fontSize: 13),
+                    Padding(
+                      padding: const EdgeInsets.only(left: 43, top: 10),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // 1️⃣ Chọn người trả (dropdown)
+                          const Text(
+                            "1. Chọn người đã chi tiền:",
+                            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                          ),
+                          const SizedBox(height: 8),
+                          DropdownButtonFormField<String>(
+                            value: selectedMemberId.isEmpty ? null : selectedMemberId,
+                            decoration: const InputDecoration(
+                              hintText: 'Chọn người trả',
+                              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              border: OutlineInputBorder(),
+                            ),
+                            items: members.map((member) {
+                              // 🔥 Hiển thị "(bạn)" nếu đây là user hiện tại
+                              final displayName = member.userId == currentUserId
+                                  ? '${member.name} (bạn)'
+                                  : member.name;
+                              return DropdownMenuItem<String>(
+                                value: member.id,
+                                child: Text(displayName),
+                              );
+                            }).toList(),
+                            onChanged: (String? value) {
+                              setState(() {
+                                selectedMemberId = value ?? '';
+                                // Khi đổi người trả, xóa người trả cũ khỏi participantIds nếu có
+                                // và đảm bảo người trả mới không nằm trong participantIds
+                                participantIds.remove(selectedMemberId);
+                              });
+                            },
+                          ),
+                          if (selectedMemberId.isEmpty)
+                            const Padding(
+                              padding: EdgeInsets.only(top: 5),
+                              child: Text(
+                                "⚠️ Vui lòng chọn người đã chi tiền",
+                                style: TextStyle(color: Colors.red, fontSize: 12),
+                              ),
+                            ),
+
+                          // 2️⃣ Chọn người nợ (checkbox) - Chỉ hiển thị sau khi đã chọn người trả
+                          if (selectedMemberId.isNotEmpty) ...[
+                            const SizedBox(height: 15),
+                            const Text(
+                              "2. Chọn người nợ (người phải trả):",
+                              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                            ),
+                            const SizedBox(height: 8),
+                            ...members.where((m) => m.id != selectedMemberId).map((member) {
+                              final isSelected = participantIds.contains(member.id);
+                              // 🔥 Hiển thị "(bạn)" nếu đây là user hiện tại
+                              final displayName = member.userId == currentUserId
+                                  ? '${member.name} (bạn)'
+                                  : member.name;
+                              return CheckboxListTile(
+                                contentPadding: EdgeInsets.zero,
+                                dense: true,
+                                title: Text(
+                                  displayName,
+                                  style: const TextStyle(fontSize: 14),
+                                ),
+                                value: isSelected,
+                                onChanged: (bool? value) {
+                                  setState(() {
+                                    if (value == true) {
+                                      if (!participantIds.contains(member.id)) {
+                                        participantIds.add(member.id);
+                                      }
+                                    } else {
+                                      participantIds.remove(member.id);
+                                    }
+                                  });
+                                },
+                                controlAffinity: ListTileControlAffinity.leading,
+                              );
+                            }).toList(),
+                            // 🔥 Không bắt buộc chọn người nợ
+                            // Nếu không chọn, người trả sẽ chi tiền cho chính mình
+                          ],
+                        ],
                       ),
                     ),
                 ],

@@ -44,6 +44,7 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
   double _totalExpense = 0;
   double _myExpense = 0;
   String owner = '';
+  String currentUserId = ''; // 🔥 userId của người đang đăng nhập
 
   List<Member> groupMembers = []; // Lưu danh sách members để hiển thị tên trong phần nợ
 
@@ -180,6 +181,15 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
     owner = await SharedPreferenceUtil.getUsername();
   }
 
+  Future<void> _loadCurrentUserId() async {
+    final userId = await SharedPreferenceUtil.getUserId();
+    if (mounted) {
+      setState(() {
+        currentUserId = userId;
+      });
+    }
+  }
+
   void fetchGroupMembers() {
     // Fetch full group details để có đầy đủ members cho việc hiển thị tên
     print("🔍 DEBUG - Fetching group members with code: ${widget.group.code}");
@@ -237,6 +247,9 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
     getOwner().then((_) {
       if (mounted) setState(() {});
     });
+
+    // 🔥 Load userId hiện tại
+    _loadCurrentUserId();
 
     // Fetch group members để hiển thị tên trong phần nợ
     fetchGroupMembers();
@@ -856,7 +869,10 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
     try {
       // Dùng groupMembers state thay vì widget.group.members
       final member = groupMembers.firstWhere((m) => m.id == targetId);
-      memberName = member.name;
+      // 🔥 Hiển thị "(bạn)" nếu đây là user hiện tại
+      memberName = member.userId == currentUserId
+          ? '${member.name} (bạn)'
+          : member.name;
     } catch (e) {
       // Fallback: hiển thị ID nếu không tìm thấy member
       memberName = targetId ?? "Unknown";

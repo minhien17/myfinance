@@ -213,7 +213,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
               controller: _emailController,
               keyboardType: TextInputType.emailAddress,
               decoration: InputDecoration(
-                labelText: 'Email',
+                labelText: 'Username',
                 border: UnderlineInputBorder(),
               ),
             ),

@@ -9,6 +9,7 @@ import 'package:my_finance/models/list_icon.dart';
 import 'package:my_finance/models/member_model.dart';
 import 'package:my_finance/models/transaction_model.dart';
 import 'package:my_finance/res/app_colors.dart';
+import 'package:my_finance/shared_preference.dart';
 
 class EditTransactionGroupPage extends StatefulWidget {
   final double amount;
@@ -39,11 +40,12 @@ class _EditTransactionGroupPageState extends State<EditTransactionGroupPage> {
   String category = "food"; // default
   String note = "";
   String selectedMember = '';
+  String currentUserId = ''; // 🔥 userId của người đang đăng nhập
 
   // ⚠️ BACKUP: Hard-coded members (giữ lại cho trường hợp cần)
   // List<String> members = ["Hiển", "Trọng", "Đạt"];
 
-  List<String> memberNames = []; // 🔥 Danh sách tên members từ API
+  List<Member> members = []; // 🔥 Danh sách members từ API
   DateTime date = DateTime.now();
 
   @override
@@ -51,12 +53,25 @@ class _EditTransactionGroupPageState extends State<EditTransactionGroupPage> {
     amountTextController.dispose();
     super.dispose();
   }
+
+  Future<void> _loadCurrentUserId() async {
+    final userId = await SharedPreferenceUtil.getUserId();
+    if (mounted) {
+      setState(() {
+        currentUserId = userId;
+      });
+    }
+  }
+
   @override
   void initState() {
     super.initState();
 
     // 🔥 Load members từ API
-    memberNames = widget.members.map((m) => m.name).toList();
+    members = widget.members;
+
+    // 🔥 Load userId hiện tại
+    _loadCurrentUserId();
 
     amount = widget.amount;
     // Kiểm tra category hợp lệ cho Dropdown
@@ -214,11 +229,15 @@ class _EditTransactionGroupPageState extends State<EditTransactionGroupPage> {
                       Expanded(
                         child: DropdownButtonFormField<String>(
                           value: selectedMember,
-                          items: memberNames.map((member) { // 🔥 Sử dụng memberNames từ API
+                          items: members.map((member) { // 🔥 Sử dụng members từ API
+                            // 🔥 Hiển thị "(bạn)" nếu đây là user hiện tại
+                            final displayName = member.userId == currentUserId
+                                ? '${member.name} (bạn)'
+                                : member.name;
                             return DropdownMenuItem<String>(
-                              value: member,
+                              value: member.name,
                               child: Text(
-                                member,
+                                displayName,
                                 style: const TextStyle(fontSize: 18, color: AppColors.blackIcon),
                               ),
                             );
