@@ -20,9 +20,9 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   bool _isVisible = true;
-  double _totalExpense = 0; 
-  double _totalIncome = 0;
-  double _balance = 0;
+  double _totalExpense = 3000000; 
+  double _totalIncome = 2000000;
+  double _balance = 1500000;
   final now = DateTime.now();
   String selectedMonth = '';
   List<double> currentMonthTotals = [];
@@ -362,7 +362,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                   ),
                                 ),
                                 Text(
-                                  'Trung bình 3 tháng trước',
+                                  'Trung bình\n3 tháng trước',
                                 ),
                               ],
                             ),

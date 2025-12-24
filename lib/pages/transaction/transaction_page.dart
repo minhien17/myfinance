@@ -24,9 +24,9 @@ class _TransactionPageState extends State<TransactionPage> {
   List<TransactionModel> lists = [];
 
   List<String> months = ["8/2025", "9/2025", "10/2025", "11/2025"];
-  double _totalExpense = 0; 
-  double _totalIncome = 0;
-  double _balance = 0;
+  double _totalExpense = 3000000; 
+  double _totalIncome = 2000000;
+  double _balance = 1500000;
   bool _loading = true;
 
   Map<String, dynamic> fakeTransactions = {
@@ -453,13 +453,13 @@ class _TransactionPageState extends State<TransactionPage> {
   
   void getListMonth() {
     ApiUtil.getInstance()!.get(
-    url: "http://localhost:3001/transactions/months",
+    url: "https://67297e9b6d5fa4901b6d568f.mockapi.io/api/test/home",
     onSuccess: (response) {
       // giả sử response.data là 1 mảng JSON
-      List<dynamic> jsonList = response.data["data"];
+      // List<dynamic> jsonList = response.data["data"];
       if (!mounted) return;
       setState(() {
-        months = jsonList.map((e) => e.toString()).toList();
+        // months = jsonList.map((e) => e.toString()).toList();
       });
     },
     onError: (error) {
@@ -475,13 +475,13 @@ class _TransactionPageState extends State<TransactionPage> {
   void getListTransaction(String nameOfMonth) {
     ApiUtil.getInstance()!.get(
     // url: ApiEndpoint.transacions,
-    url: "http://localhost:3001/transactions",
-    params: {
-      "monthYear":nameOfMonth
-    },
+    url: "https://67297e9b6d5fa4901b6d568f.mockapi.io/api/test/transactions",
+    // params: {
+    //   "monthYear":nameOfMonth
+    // },
     onSuccess: (response) {
       // giả sử response.data là 1 mảng JSON
-      List<dynamic> jsonList = response.data["data"];
+      List<dynamic> jsonList = response.data;
       //['data'];
       print(jsonList);
       if (!mounted) return;

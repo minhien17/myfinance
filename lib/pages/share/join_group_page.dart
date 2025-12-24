@@ -53,7 +53,7 @@ class _JoinGroupScreenState extends State<JoinGroupScreen> {
       setState(() {
         _foundGroup = Group(
           id: 'g01',
-          name: 'Team Dự Án Business Analyst',
+          name: 'Nhóm Trọ',
           number: 4,
           members: [
             "Hiển", "Trọng", "Đạt"
@@ -223,7 +223,7 @@ class _JoinGroupScreenState extends State<JoinGroupScreen> {
         ),
         const SizedBox(height: 24),
         const Text(
-          'Bạn là ai trong danh sách này?',
+          'Bạn là ai trong nhóm?',
           style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
         ),
         const SizedBox(height: 8),

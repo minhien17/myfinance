@@ -30,7 +30,8 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
   List<TransactionModel> lists = [];
   bool _loading = true;
 
-  double _totalExpense = 0; 
+  double _totalExpense = 3000000; 
+  double _youPay = 100000; 
   String owner = '';
 
   void reLoadPage(){
@@ -397,7 +398,7 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceAround,
                       children: [
-                        Text(Common.formatNumber(_totalExpense.toString()),
+                        Text(Common.formatNumber(_youPay.toString()),
                             style: const TextStyle(color: AppColors.blackIcon, fontSize: 18)),
                         Text(Common.formatNumber(_totalExpense.toString()),
                             style: const TextStyle(color: AppColors.blackIcon, fontSize: 18)),
@@ -416,7 +417,7 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
                             foregroundColor: Colors.white,
                             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 15),
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(20),
+                              borderRadius: BorderRadius.circular(30),
                             ),
                           ),
                           onPressed: () {
@@ -426,7 +427,7 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
                             );
                           },
                           child: const Text(
-                            "Thêm chi tiêu",
+                            "Thêm khoản",
                             style: TextStyle(fontSize: 16),
                           ),
                         ),
@@ -442,7 +443,7 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
                             foregroundColor: Colors.white,
                             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 15),
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(20),
+                              borderRadius: BorderRadius.circular(30),
                             ),
                           ),
                           onPressed: () {

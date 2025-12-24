@@ -50,7 +50,7 @@ class _SignInScreenState extends State<SignInScreen> {
       "email":email,
       "password":password
     },
-    url: "http://172.21.64.1:3002/auth/login",// fixx
+    url: "http://localhost:3002/auth/login",// fixx
     onSuccess: (response) {
       hideLoading();
       // lấy token và user name

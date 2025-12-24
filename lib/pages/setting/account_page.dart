@@ -16,12 +16,12 @@ class AccountPage extends StatefulWidget {
 }
 
 class _AccountPageState extends State<AccountPage> {
-  String username = "";
-  String email = "";
+  String username = "Hiển Linh";
+  String email = "hienlinh2624@gmail.com";
 
   Future<void> getUserInfor () async {
-    username = await SharedPreferenceUtil.getUsername();
-    email = await SharedPreferenceUtil.getEmail();
+    // username = await SharedPreferenceUtil.getUsername();
+    // email = await SharedPreferenceUtil.getEmail();
     setState(() {
       
     });

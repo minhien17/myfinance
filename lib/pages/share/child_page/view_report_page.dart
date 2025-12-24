@@ -20,7 +20,7 @@ class ViewReportPage extends StatefulWidget {
 class _ViewReportPageState extends State<ViewReportPage> {
   // Dữ liệu mô phỏng ban đầu
   List<MemberReport> _members = [
-    MemberReport(name: 'Hiển (you)', spent: 10000),
+    MemberReport(name: 'Hiển (bạn)', spent: 10000),
     MemberReport(name: 'Trọng', spent: 10000),
     MemberReport(name: 'Đạt', spent: 0),
   ];
@@ -53,9 +53,6 @@ class _ViewReportPageState extends State<ViewReportPage> {
       // Trọng (10000) -> 3333.33 (Phải nhận)
       // Đạt (0) -> -6666.67 (Phải trả)
       
-      // Để khớp với ảnh (Trọng: 0, Đạt: -5000) -> Dùng dữ liệu cố định cho ví dụ
-      _members.firstWhere((m) => m.name == 'Trọng').balance = 0; // Giả định
-      _members.firstWhere((m) => m.name == 'Đạt').balance = -5000; // Giả định
       
       _isCalculated = true;
     });
@@ -79,7 +76,7 @@ class _ViewReportPageState extends State<ViewReportPage> {
       backgroundColor: Colors.white,
       appBar: AppBar(
         title: const Text(
-          'View report',
+          'Xem báo cáo',
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
         backgroundColor: Colors.white,
@@ -94,18 +91,22 @@ class _ViewReportPageState extends State<ViewReportPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            
+
             // 1. Tóm tắt Chi tiêu Nhóm
             _buildSummaryCard(),
             
             const SizedBox(height: 20),
 
-            // 2. Nút Tính Toán
-            _buildCalculateButton(),
+            _buildPayCard(),
 
-            const SizedBox(height: 30),
+            // // 2. Nút Tính Toán
+            // _buildCalculateButton(),
 
-            // 3. Kết quả Thanh toán (Chỉ hiển thị khi đã tính toán)
-            if (_isCalculated) _buildSettlementResult(),
+            // const SizedBox(height: 30),
+
+            // // 3. Kết quả Thanh toán (Chỉ hiển thị khi đã tính toán)
+            // if (_isCalculated) _buildSettlementResult(),
           ],
         ),
       ),
@@ -134,7 +135,7 @@ class _ViewReportPageState extends State<ViewReportPage> {
             const Divider(height: 20),
 
             // Tổng chi tiêu
-            _buildReportRow('All', _totalSpent, isTotal: true),
+            _buildReportRow('Tổng', _totalSpent, isTotal: true),
             const SizedBox(height: 15),
 
             // Chi tiêu từng thành viên
@@ -143,6 +144,36 @@ class _ViewReportPageState extends State<ViewReportPage> {
               member.spent,
               isTotal: false,
             )).toList(),
+          ],
+        ),
+      ),
+    );
+  }
+
+    // --- WIDGET CON: Tóm tắt Chi tiêu ---
+  Widget _buildPayCard() {
+    return Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Tên nhóm (Trọ)
+            Text(
+              "Bạn phải trả",
+              style: TextStyle(
+                fontSize: 22, 
+                fontWeight: FontWeight.bold, 
+                color: Colors.grey[700]
+              ),
+            ),
+            const Divider(height: 20),
+
+            // Chi tiêu từng thành viên
+            _buildReportRow("Đạt", -6667, isTotal: false),
+            _buildReportRow("Trọng", 0, isTotal: false)
           ],
         ),
       ),
