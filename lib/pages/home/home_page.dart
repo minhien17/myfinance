@@ -131,6 +131,11 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     super.dispose();
   }
 
+  void reLoadPage() {
+    getApi();
+    getDataChart(forceRefresh: true);
+  }
+
   void _toggleVisible() {
     setState(() {
       _isVisible = !_isVisible;
@@ -164,10 +169,16 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                           : const Icon(Icons.visibility_off),
                     ),
                     const Spacer(),
+                    IconButton(
+                      onPressed: () {
+                        reLoadPage();
+                      },
+                      icon: const Icon(Icons.refresh),
+                    ),
                     IconButton(onPressed: (){
-                      showInstantNotification(); 
+                      showInstantNotification();
                     }, icon: Icon(Icons.notifications),)
-                    
+
                   ],
                 ),
                 Row(
@@ -493,12 +504,13 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     };
   }
 
-  void getDataChart() {
+  void getDataChart({bool forceRefresh = false}) {
     ApiUtil.getInstance()!.get(
       url: "http://localhost:3003/transactions/summary",
       params: {
         "monthYear": selectedMonth, // Format: "MM/YYYY"
       },
+      headers: forceRefresh ? {"X-Force-Refresh": "true"} : null,
       onSuccess: (response) {
         print("✅ Summary API response: ${response.data}");
 

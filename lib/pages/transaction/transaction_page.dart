@@ -301,8 +301,10 @@ class _TransactionPageState extends State<TransactionPage> {
                           children: [
                             const Spacer(),
                             IconButton(
-                              onPressed: () {},
-                              icon: const Icon(Icons.search),
+                              onPressed: () {
+                                reLoadPage();
+                              },
+                              icon: const Icon(Icons.refresh),
                             ),
                             IconButton(
                               onPressed: () {},
