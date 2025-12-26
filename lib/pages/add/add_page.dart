@@ -267,9 +267,13 @@ Future<void> addExpense({
   final completer = Completer<void>();
   // Nếu gọi API
   ApiUtil.getInstance()!.post(
-    url: "http://localhost:3001/transactions",
-    //"https://67297e9b6d5fa4901b6d568f.mockapi.io/api/test/transaction",
-    body:  expense.toJson(),
+    url: "http://localhost:3001/",
+    body: {
+      "amount": amount,
+      "category": category,
+      "note": note,
+      "dateTime": dateTime.toIso8601String(),
+    },
     onSuccess: (response) {
       
       print("✅ Add expense success: ${response.data}");

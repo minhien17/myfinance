@@ -113,20 +113,16 @@ class _TransactionPageState extends State<TransactionPage> {
 
 
   void getTotal() {
-    ApiUtil.getInstance()!.get(url: "https://67297e9b6d5fa4901b6d568f.mockapi.io/api/test/home", onSuccess: (response){
-      var data = response.data[0];
-      // var data = fakeTransactions["totals"];
-      
-      _balance = data["balance"];
-      _totalIncome = data['income'];
-      _totalExpense = data['expense'];
-      if (!mounted) return;
-      setState(() {
-        // cập nhật state
-      });
-    }, onError: (error){
-      
-    });
+    ApiUtil.getInstance()!.get(
+      url: "http://localhost:3001/account/balance", 
+      onSuccess: (response){
+        if (response.data != null) {
+          _balance = Common.parseDouble(response.data["balance"]);
+          if (mounted) setState(() {});
+        }
+      }, 
+      onError: (error) => print("Balance API error: $error"),
+    );
   }
 
   List<Widget> buildExpenseList(List<TransactionModel> lists, BuildContext context) {
@@ -305,8 +301,10 @@ class _TransactionPageState extends State<TransactionPage> {
                           children: [
                             const Spacer(),
                             IconButton(
-                              onPressed: () {},
-                              icon: const Icon(Icons.search),
+                              onPressed: () {
+                                reLoadPage();
+                              },
+                              icon: const Icon(Icons.refresh),
                             ),
                             IconButton(
                               onPressed: () {},
@@ -422,11 +420,25 @@ class _TransactionPageState extends State<TransactionPage> {
           
         ),
                       onPressed: (){
+                        Map<String, double> categoryMap = {};
+                        for (var t in lists) {
+                          if (t.category.toLowerCase() != 'income') {
+                            categoryMap[t.category] = (categoryMap[t.category] ?? 0) + t.amount;
+                          }
+                        }
+                        final mapReport = {
+                          "totals": {
+                            "income": _totalIncome,
+                            "expense": _totalExpense,
+                            "balance": _balance
+                          },
+                          "data": categoryMap
+                        };
                         Navigator.push(
                             context,
                             MaterialPageRoute(
                               builder: (_) => ReportPage(month: selectedMonth, 
-                              transactionsMap: fakeTransactions, // truyền nguyên Map
+                              transactionsMap: mapReport, 
                               ),
                             ),
                           );
@@ -449,52 +461,71 @@ class _TransactionPageState extends State<TransactionPage> {
       ),
     );
   }
-  
-  
+
+
   void getListMonth() {
     ApiUtil.getInstance()!.get(
-    url: "https://67297e9b6d5fa4901b6d568f.mockapi.io/api/test/home",
-    onSuccess: (response) {
-      // giả sử response.data là 1 mảng JSON
-      // List<dynamic> jsonList = response.data["data"];
-      if (!mounted) return;
-      setState(() {
-        // months = jsonList.map((e) => e.toString()).toList();
-      });
-    },
-    onError: (error) {
-      if (error is TimeoutException) {
-            toastInfo(msg: "Time out");
-          } else {
-            toastInfo(msg: error.toString());
-          }
-    },
-  );
+      url: "http://localhost:3001/months",
+      onSuccess: (response) {
+        List<dynamic> jsonList = response.data;
+        if (!mounted) return;
+        setState(() {
+          months = jsonList.map((e) => e.toString()).toList();
+        });
+      },
+      onError: (error) {
+        if (error is TimeoutException) {
+          toastInfo(msg: "Time out");
+        } else {
+          toastInfo(msg: error.toString());
+        }
+      },
+    );
   }
   
   void getListTransaction(String nameOfMonth) {
+    // nameOfMonth: "MM/YYYY"
+    final parts = nameOfMonth.split('/');
+    if (parts.length != 2) return;
+    
+    _loading = true;
+    if (mounted) setState(() {});
+
     ApiUtil.getInstance()!.get(
-    // url: ApiEndpoint.transacions,
-    url: "https://67297e9b6d5fa4901b6d568f.mockapi.io/api/test/transactions",
-    // params: {
-    //   "monthYear":nameOfMonth
-    // },
-    onSuccess: (response) {
-      // giả sử response.data là 1 mảng JSON
-      List<dynamic> jsonList = response.data;
-      //['data'];
-      print(jsonList);
-      if (!mounted) return;
-      setState(() {
-        lists =
-            jsonList.map((json) => TransactionModel.fromJson(json)).toList();
+      url: "http://localhost:3001/",
+      params: {
+        "month": int.parse(parts[0]),
+        "year": int.parse(parts[1]),
+      },
+      onSuccess: (response) {
+        if (response.data != null && response.data is List) {
+          final List<dynamic> jsonList = response.data;
+          lists = jsonList
+            .where((json) => json is Map<String, dynamic>)
+            .map((json) => TransactionModel.fromJson(json))
+            .toList();
+          
+          // Tính toán lại tổng thu/chi cho tháng này
+          _totalIncome = 0;
+          _totalExpense = 0;
+          for (var item in lists) {
+            if (item.category.toLowerCase() == 'income') {
+              _totalIncome += item.amount;
+            } else {
+              _totalExpense += item.amount;
+            }
+          }
+
+          _loading = false;
+          if (mounted) setState(() {});
+        }
+      },
+      onError: (error) {
+        print("Lỗi khi gọi API: $error");
         _loading = false;
-      });
-    },
-    onError: (error) {
-      print("Lỗi khi gọi API: $error");
-    },
-  );
+        if (mounted) setState(() {});
+      },
+    );
   }
 }
 
@@ -511,3 +542,4 @@ Image itemLeading(String type) {
     width: 30,
   );
 }
+

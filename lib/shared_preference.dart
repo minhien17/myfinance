@@ -1,7 +1,8 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
 class SPrefCache {
-  static const KEY_USERID = 'USERID';
+  static const KEY_USERID = 'USERID'; // Hiện tại đang chứa Token
+  static const KEY_USER_DB_ID = 'USER_DB_ID'; // Chứa ID thực của user
   static const KEY_USERNAME = 'USERNAME';
   static const KEY_EMAIL = 'EMAIL';
   static const KEY_IMAGE = 'USER_IMAGE';
@@ -24,6 +25,11 @@ class SharedPreferenceUtil {
   static Future saveEmail(String email) async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     await prefs.setString(SPrefCache.KEY_EMAIL, email);
+  }
+
+  static Future saveUserId(String userId) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setString(SPrefCache.KEY_USER_DB_ID, userId);
   }
 
   // static Future saveImage(String imageUrl) async {
@@ -58,6 +64,11 @@ class SharedPreferenceUtil {
     return prefs.getString(SPrefCache.KEY_USERID) ?? '';
   }
 
+  static Future<String> getUserId() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    return prefs.getString(SPrefCache.KEY_USER_DB_ID) ?? '';
+  }
+
   // static Future<String> getPhone() async {
   //   SharedPreferences prefs = await SharedPreferences.getInstance();
   //   return prefs.getString(SPrefCache.KEY_PHONE) ?? '0000'; // Lấy phone
@@ -67,6 +78,7 @@ class SharedPreferenceUtil {
   static Future<void> clearToken() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(SPrefCache.KEY_USERID);
+    await prefs.remove(SPrefCache.KEY_USER_DB_ID);
     await prefs.remove(SPrefCache.KEY_USERNAME);
     await prefs.remove(SPrefCache.KEY_EMAIL);
     await prefs.remove(SPrefCache.KEY_IMAGE);

@@ -6,8 +6,10 @@ import 'package:my_finance/api/api_util.dart';
 import 'package:my_finance/common/loading_dialog.dart';
 import 'package:my_finance/models/icon.dart';
 import 'package:my_finance/models/list_icon.dart';
+import 'package:my_finance/models/member_model.dart';
 import 'package:my_finance/models/transaction_model.dart';
 import 'package:my_finance/res/app_colors.dart';
+import 'package:my_finance/shared_preference.dart';
 
 class EditTransactionGroupPage extends StatefulWidget {
   final double amount;
@@ -15,6 +17,7 @@ class EditTransactionGroupPage extends StatefulWidget {
   final String note;
   final DateTime date;
   final String owner;
+  final List<Member> members; // 🔥 Thêm members từ API
 
   const EditTransactionGroupPage({
     Key? key,
@@ -22,7 +25,8 @@ class EditTransactionGroupPage extends StatefulWidget {
     required this.category,
     required this.note,
     required this.date,
-    required this.owner
+    required this.owner,
+    required this.members, // 🔥 Required members
   }) : super(key: key);
   @override
   _EditTransactionGroupPageState createState() => _EditTransactionGroupPageState();
@@ -36,8 +40,12 @@ class _EditTransactionGroupPageState extends State<EditTransactionGroupPage> {
   String category = "food"; // default
   String note = "";
   String selectedMember = '';
-  
-  List<String> members = ["Hiển", "Trọng", "Đạt"];
+  String currentUserId = ''; // 🔥 userId của người đang đăng nhập
+
+  // ⚠️ BACKUP: Hard-coded members (giữ lại cho trường hợp cần)
+  // List<String> members = ["Hiển", "Trọng", "Đạt"];
+
+  List<Member> members = []; // 🔥 Danh sách members từ API
   DateTime date = DateTime.now();
 
   @override
@@ -45,19 +53,38 @@ class _EditTransactionGroupPageState extends State<EditTransactionGroupPage> {
     amountTextController.dispose();
     super.dispose();
   }
+
+  Future<void> _loadCurrentUserId() async {
+    final userId = await SharedPreferenceUtil.getUserId();
+    if (mounted) {
+      setState(() {
+        currentUserId = userId;
+      });
+    }
+  }
+
   @override
   void initState() {
-    // TODO: implement initState
     super.initState();
+
+    // 🔥 Load members từ API
+    members = widget.members;
+
+    // 🔥 Load userId hiện tại
+    _loadCurrentUserId();
+
     amount = widget.amount;
-    category = widget.category;
+    // Kiểm tra category hợp lệ cho Dropdown
+    bool isValidCategory = ListIcon.any((element) => element.title == widget.category);
+    category = isValidCategory ? widget.category : "other";
+
     note = widget.note;
     date = widget.date;
     selectedMember = widget.owner;
 
     amountTextController = TextEditingController(text: amount.toString());
     noteTextController = TextEditingController(text: note.toString());
-    
+
   }
 
   void datePicker() async {
@@ -202,11 +229,15 @@ class _EditTransactionGroupPageState extends State<EditTransactionGroupPage> {
                       Expanded(
                         child: DropdownButtonFormField<String>(
                           value: selectedMember,
-                          items: members.map((member) {
+                          items: members.map((member) { // 🔥 Sử dụng members từ API
+                            // 🔥 Hiển thị "(bạn)" nếu đây là user hiện tại
+                            final displayName = member.userId == currentUserId
+                                ? '${member.name} (bạn)'
+                                : member.name;
                             return DropdownMenuItem<String>(
-                              value: member,
+                              value: member.name,
                               child: Text(
-                                member,
+                                displayName,
                                 style: const TextStyle(fontSize: 18, color: AppColors.blackIcon),
                               ),
                             );
@@ -218,7 +249,7 @@ class _EditTransactionGroupPageState extends State<EditTransactionGroupPage> {
                           },
                           decoration: const InputDecoration(
                             hintText: 'Chọn thành viên',
-                            
+
                           ),
                           dropdownColor: Colors.white,
                           style: const TextStyle(
@@ -335,10 +366,14 @@ Future<void> addExpense({
 
    // 3. Sử dụng Completer để đợi API hoàn thành
   final completer = Completer<void>();
-  // Nếu gọi API
   ApiUtil.getInstance()!.post(
-    url: "https://67297e9b6d5fa4901b6d568f.mockapi.io/api/test/transaction",
-    body:  expense.toJson(),
+    url: "http://localhost:3001/",
+    body: {
+      "amount": amount,
+      "category": category,
+      "note": note,
+      "dateTime": dateTime.toIso8601String(),
+    },
     onSuccess: (response) {
       
       print("✅ Add expense success: ${response.data}");

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:my_finance/api/api_util.dart';
+import 'package:my_finance/utils.dart';
 
 // Giả định Model Member
 class MemberReport {
@@ -10,52 +12,58 @@ class MemberReport {
 }
 
 class ViewReportPage extends StatefulWidget {
+  final String groupId;
   final String groupName;
-  const ViewReportPage({super.key, this.groupName = 'Trọ'});
+  const ViewReportPage({super.key, required this.groupId, this.groupName = 'Trọ'});
 
   @override
   State<ViewReportPage> createState() => _ViewReportPageState();
 }
 
 class _ViewReportPageState extends State<ViewReportPage> {
-  // Dữ liệu mô phỏng ban đầu
-  List<MemberReport> _members = [
-    MemberReport(name: 'Hiển (bạn)', spent: 10000),
-    MemberReport(name: 'Trọng', spent: 10000),
-    MemberReport(name: 'Đạt', spent: 0),
-  ];
-  double _totalSpent = 20000;
-  
-  // Trạng thái: đã tính toán hay chưa
+  List<MemberReport> _members = [];
+  double _totalSpent = 0;
   bool _isCalculated = false;
+  bool _loading = true;
 
   @override
   void initState() {
     super.initState();
-    _totalSpent = _members.fold(0, (sum, item) => sum + item.spent);
+    _fetchBalances();
   }
 
-  // Logic tính toán (Mô phỏng)
-  void _calculateSettlement() {
-    setState(() {
-      if (_isCalculated) {
-        // Reset nếu đã tính toán
-        for (var member in _members) {
-          member.balance = 0.0;
+  void _fetchBalances() {
+    setState(() => _loading = true);
+    ApiUtil.getInstance()!.get(
+      url: "http://localhost:3001/groups/${widget.groupId}/balances",
+      onSuccess: (response) {
+        if (response.data != null && response.data['balances'] != null) {
+          final List balances = response.data['balances'];
+          _members = balances.map((b) => MemberReport(
+            name: b['memberName'] ?? b['memberId'].toString(),
+            spent: 0, // Backend logic for total spent per user is separate, but balance reflects the result
+            balance: Common.parseDouble(b['balance'])
+          )).toList();
+          
+          _totalSpent = 0;
+          // Note: The /balances endpoint gives net results. 
+          // If we want total spent per person, we might need a different endpoint or combine data.
+          // For settlement view, net balance is most important.
+          
+          _isCalculated = true; 
+          _loading = false;
+          if (mounted) setState(() {});
         }
-        _isCalculated = false;
-        return;
+      },
+      onError: (err) {
+        print("Fetch balances error: $err");
+        if (mounted) setState(() => _loading = false);
       }
+    );
+  }
 
-      // 💡 LOGIC TÍNH TOÁN CỐT LÕI (Mô phỏng dựa trên ảnh)
-      // Giả định: Chia đều 20000/3 = 6666.67
-      // Hiển (10000) -> 3333.33 (Phải nhận)
-      // Trọng (10000) -> 3333.33 (Phải nhận)
-      // Đạt (0) -> -6666.67 (Phải trả)
-      
-      
-      _isCalculated = true;
-    });
+  void _calculateSettlement() {
+    _fetchBalances(); // Refresh data
   }
 
   // Định dạng số tiền

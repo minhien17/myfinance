@@ -1,14 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:my_finance/models/group_model.dart';
-
-// 1. Models: Định nghĩa dữ liệu cho Nhóm và Thành viên
-class Member {
-  final String id;
-  final String name;
-  final String? avatarUrl;
-
-  Member({required this.id, required this.name, this.avatarUrl});
-}
+import 'package:my_finance/models/member_model.dart';
+import 'package:my_finance/api/api_util.dart';
+import 'package:my_finance/pages/share/child_page/transation_group_page.dart';
 
 // 2. Màn hình tham gia nhóm
 class JoinGroupScreen extends StatefulWidget {
@@ -19,21 +13,19 @@ class JoinGroupScreen extends StatefulWidget {
 }
 
 class _JoinGroupScreenState extends State<JoinGroupScreen> {
-  // Trạng thái hiện tại: 0 = Nhập mã, 1 = Chọn thành viên
+  // Trạng thái hiện tại: 0 = Nhập mã, 1 = Nhập tên
   int _currentStep = 0;
   bool _isLoading = false;
 
   final TextEditingController _codeController = TextEditingController();
-  
+  final TextEditingController _nameController = TextEditingController();
+
   // Dữ liệu nhóm sau khi tìm thấy
   Group? _foundGroup;
-  
-  // ID thành viên mà người dùng chọn (chính là họ)
-  String? _selectedMemberId;
 
   // --- LOGIC GIẢ LẬP API ---
 
-  // Giả lập API kiểm tra mã nhóm
+  // Bước 1: Kiểm tra mã nhóm
   Future<void> _verifyGroupCode() async {
     final code = _codeController.text.trim();
     if (code.isEmpty) {
@@ -45,49 +37,108 @@ class _JoinGroupScreenState extends State<JoinGroupScreen> {
 
     setState(() => _isLoading = true);
 
-    // Giả lập delay mạng 1.5 giây
-    await Future.delayed(const Duration(milliseconds: 1500));
+    ApiUtil.getInstance()!.get(
+      url: "http://localhost:3004/join/$code",
+      onSuccess: (response) {
+        setState(() => _isLoading = false);
 
-    // Mock dữ liệu trả về (Giả sử mã đúng là '123456')
-    if (code == '123456') {
-      setState(() {
-        _foundGroup = Group(
-          id: 'g01',
-          name: 'Nhóm Trọ',
-          number: 4,
-          members: [
-            "Hiển", "Trọng", "Đạt"
-          ],
-        );
-        _currentStep = 1; // Chuyển sang bước 2
-        _isLoading = false;
-      });
-    } else {
-      setState(() => _isLoading = false);
-      if (mounted) {
+        try {
+          final item = response.data;
+
+          List<Member> allMembers = [];
+          int joinedCount = 0;
+
+          if (item["members"] != null) {
+            for (var m in item["members"]) {
+              final member = Member.fromJson(m is Map ? Map<String, dynamic>.from(m) : {});
+              allMembers.add(member);
+
+              if (member.joined) {
+                joinedCount++;
+              }
+            }
+          }
+
+          final group = Group(
+            id: (item["id"] ?? item["groupId"] ?? "").toString(),
+            name: (item["name"] ?? "No Name").toString(),
+            code: (item["code"] ?? "").toString(),
+            number: joinedCount,
+            totalMembers: allMembers.length,
+            members: allMembers
+          );
+
+          setState(() {
+            _foundGroup = group;
+            _currentStep = 1; // Chuyển sang bước nhập tên
+          });
+
+        } catch (e) {
+          print("Error parsing join response: $e");
+          ScaffoldMessenger.of(context).showSnackBar(
+             const SnackBar(content: Text('Lỗi xử lý dữ liệu nhóm')),
+          );
+        }
+      },
+      onError: (error) {
+        setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Không tìm thấy nhóm với mã này.')),
+           SnackBar(content: Text('Lỗi kiểm tra mã: $error')),
         );
-      }
-    }
+      },
+    );
   }
 
-  // Xử lý xác nhận tham gia
+  // Bước 2: Xác nhận tham gia
   void _confirmJoin() {
-    if (_selectedMemberId == null) {
+    final memberName = _nameController.text.trim();
+
+    if (memberName.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Vui lòng chọn tên của bạn trong danh sách.')),
+        const SnackBar(content: Text('Vui lòng nhập tên của bạn')),
       );
       return;
     }
 
-    // Logic gọi API join nhóm thật ở đây...
-    
-    // Sau khi thành công, back về màn danh sách và trả về kết quả
-    Navigator.pop(context, true); 
-    
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Đã tham gia nhóm ${_foundGroup?.name} thành công!')),
+    if (_foundGroup == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Không tìm thấy thông tin nhóm')),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    ApiUtil.getInstance()!.post(
+      url: "http://localhost:3004/join",
+      body: {
+        "groupCode": _foundGroup!.code,
+        "memberName": memberName
+      },
+      onSuccess: (response) {
+        setState(() => _isLoading = false);
+
+        // Chuyển sang trang chi tiết nhóm
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => TransactionGroupPage(
+              group: _foundGroup!,
+              joinedMemberName: memberName,
+            ),
+          ),
+        );
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Đã tham gia nhóm ${_foundGroup?.name} thành công!')),
+        );
+      },
+      onError: (error) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+           SnackBar(content: Text('Lỗi tham gia: $error')),
+        );
+      },
     );
   }
 
@@ -106,7 +157,7 @@ class _JoinGroupScreenState extends State<JoinGroupScreen> {
               setState(() {
                 _currentStep = 0;
                 _foundGroup = null;
-                _selectedMemberId = null;
+                _nameController.clear();
               });
             } else {
               Navigator.pop(context);
@@ -125,7 +176,7 @@ class _JoinGroupScreenState extends State<JoinGroupScreen> {
               
               // Nội dung chính thay đổi theo bước
               Expanded(
-                child: _currentStep == 0 ? _buildStep1InputCode() : _buildStep2SelectMember(),
+                child: _currentStep == 0 ? _buildStep1InputCode() : _buildStep2InputName(),
               ),
             ],
           ),
@@ -192,8 +243,8 @@ class _JoinGroupScreenState extends State<JoinGroupScreen> {
     );
   }
 
-  // BƯỚC 2: CHỌN THÀNH VIÊN
-  Widget _buildStep2SelectMember() {
+  // BƯỚC 2: NHẬP TÊN
+  Widget _buildStep2InputName() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -215,7 +266,7 @@ class _JoinGroupScreenState extends State<JoinGroupScreen> {
                 textAlign: TextAlign.center,
               ),
               Text(
-                'Mã: ${_foundGroup?.id}',
+                'Mã: ${_foundGroup?.code}',
                 style: const TextStyle(color: Colors.grey),
               ),
             ],
@@ -223,50 +274,33 @@ class _JoinGroupScreenState extends State<JoinGroupScreen> {
         ),
         const SizedBox(height: 24),
         const Text(
-          'Bạn là ai trong nhóm?',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+          'Nhập tên của bạn',
+          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 8),
-        
-        // Danh sách thành viên để chọn
-        Expanded(
-          child: ListView.separated(
-            itemCount: _foundGroup?.members.length ?? 0,
-            separatorBuilder: (ctx, index) => const Divider(),
-            itemBuilder: (context, index) {
-              final member = _foundGroup!.members[index];
-              final isSelected = _selectedMemberId == member;
-
-              return ListTile(
-                onTap: () {
-                  setState(() {
-                    _selectedMemberId = member;
-                  });
-                },
-                
-                title: Text(
-                  member,
-                  style: TextStyle(
-                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                    color: isSelected ? Colors.blue : Colors.black,
-                  ),
-                ),
-                trailing: isSelected
-                    ? const Icon(Icons.radio_button_checked, color: Colors.blue)
-                    : const Icon(Icons.radio_button_off, color: Colors.grey),
-                tileColor: isSelected ? Colors.blue.withOpacity(0.05) : null,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              );
-            },
-          ),
+        const Text(
+          'Tên này sẽ được hiển thị cho các thành viên khác trong nhóm.',
+          style: TextStyle(color: Colors.grey),
         ),
-        
-        const SizedBox(height: 16),
+        const SizedBox(height: 24),
+        TextField(
+          controller: _nameController,
+          decoration: const InputDecoration(
+            labelText: 'Tên của bạn',
+            border: OutlineInputBorder(),
+            prefixIcon: Icon(Icons.person),
+          ),
+          textCapitalization: TextCapitalization.words,
+        ),
+        const Spacer(),
         SizedBox(
           height: 50,
           child: ElevatedButton(
-            onPressed: _confirmJoin,
-            child: const Text('Xác nhận tham gia'),
+            onPressed: _isLoading ? null : _confirmJoin,
+            child: _isLoading
+                ? const SizedBox(
+                    width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white))
+                : const Text('Tham gia nhóm'),
           ),
         ),
       ],

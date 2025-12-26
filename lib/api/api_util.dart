@@ -18,6 +18,7 @@ class ApiUtil {
   Future<void> get(
       {required String url,
       Map<String, dynamic> params = const {},
+      Map<String, String>? headers,
       required Function(BaseResponse response) onSuccess,
       required Function(dynamic error) onError,
       bool isCancel = false}) async {
@@ -28,12 +29,18 @@ class ApiUtil {
     try {
       print('--- GET Request ---');
       print('URL: $uri');
+      print('Token: $token');
+
+      // Merge default headers with custom headers
+      final Map<String, String> finalHeaders = {
+        "Authorization": 'Bearer $token',
+        "content-type": 'application/json; charset=UTF-8',
+        ...?headers, // Spread custom headers if provided
+      };
+
       var res = await http.get(
         uri,
-        headers: {
-          "authorization": 'Bearer $token',
-          "content-type": 'application/json; charset=UTF-8'
-        },
+        headers: finalHeaders,
       ).timeout(const Duration(seconds: 10));
       print('--- GET Response ---');
       print('Status code: ${res.statusCode}');
@@ -71,7 +78,7 @@ class ApiUtil {
         uri,
         body: jsonEncode(body),
         headers: {
-          "authorization": 'Bearer $token',
+          "Authorization": 'Bearer $token',
           "content-type": 'application/json; charset=UTF-8'
         },
       ).timeout(const Duration(seconds: 10));
@@ -111,7 +118,7 @@ class ApiUtil {
         uri,
         body: jsonEncode(body),
         headers: {
-          "authorization": 'Bearer $token',
+          "Authorization": 'Bearer $token',
           "content-type": 'application/json; charset=UTF-8'
         },
       ).timeout(const Duration(seconds: 10));
@@ -153,7 +160,7 @@ class ApiUtil {
       var res = await http.delete(
         uri,
         headers: {
-          "authorization": 'Bearer $token',
+          "Authorization": 'Bearer $token',
           "content-type": 'application/json; charset=UTF-8'
         },
       ).timeout(const Duration(seconds: 10));
@@ -192,7 +199,7 @@ class ApiUtil {
         uri,
         body: jsonEncode(body),
         headers: {
-          "authorization": 'Bearer $token',
+          "Authorization": 'Bearer $token',
           "content-type": 'application/json; charset=UTF-8'
         },
       ).timeout(const Duration(seconds: 10));

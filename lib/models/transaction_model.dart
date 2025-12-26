@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:my_finance/utils.dart';
 
 class TransactionModel {
   String? _id;            // Định danh duy nhất cho mỗi khoản chi
@@ -28,7 +29,7 @@ class TransactionModel {
   // fromJson
   TransactionModel.fromJson(Map<String, dynamic> json) {
     _id = json['id'];
-    _amount = (json['amount'] as num?)?.toDouble();
+    _amount = Common.parseDouble(json['amount']);
     _category = (json['category'] ?? '').toString().toLowerCase();
     _note = json['note'];
     _dateTime = json['dateTime'] != null ? DateTime.parse(json['dateTime']) : null;

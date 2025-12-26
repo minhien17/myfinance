@@ -31,11 +31,18 @@ class _MyAccountPageState extends State<MyAccountPage> {
   }
   
   Future<void> _logout(BuildContext context) async {
+    // Clear toàn bộ thông tin session
     await SharedPreferenceUtil.saveToken("");
-    // Chuyển về trang LoadingScreen để kiểm tra lại (hoặc trực tiếp về LoginScreen)
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => LoadingScreen()),
-    );
+    await SharedPreferenceUtil.saveUsername("");
+    await SharedPreferenceUtil.saveEmail("");
+    
+    // Chuyển về trang LoadingScreen để kiểm tra lại
+    if (context.mounted) {
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => LoadingScreen()),
+        (route) => false, // Xóa hết stack cũ
+      );
+    }
   }
 
   @override

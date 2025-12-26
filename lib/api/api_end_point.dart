@@ -1,11 +1,17 @@
 class ApiEndpoint {
   // host wifi
-
   static String HOST = "10.241.110.56"; // mạng dữ liệu
 
   // đổi mạng wifi là phải thay đổi host - vì cái ip address là ăn theo mạng nữa.
   // ipconfig, Ipv4 address
 
+  // 🔷 Transaction Service (Port 3001)
+  static String TRANSACTION_SERVICE = "$HOST:3001";
+
+  // 🔶 Group Service (Port 3004)
+  static String GROUP_SERVICE = "$HOST:3004";
+
+  // Legacy DOMAIN for backward compatibility
   static String DOMAIN = "$HOST:3001";
 
   static String transacions = "$DOMAIN/transactions";

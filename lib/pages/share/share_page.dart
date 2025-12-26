@@ -2,11 +2,14 @@ import 'package:bootstrap_icons/bootstrap_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:my_finance/models/group_model.dart';
+import 'package:my_finance/models/member_model.dart';
 import 'package:my_finance/pages/share/child_page/transation_group_page.dart';
 import 'package:my_finance/pages/share/create_group_page.dart';
 import 'package:my_finance/pages/share/join_group_page.dart';
 import 'package:my_finance/res/app_colors.dart';
 import 'package:my_finance/res/app_styles.dart';
+import 'package:my_finance/api/api_util.dart';
+import 'package:my_finance/shared_preference.dart';
 
 
 class SharePage extends StatefulWidget {
@@ -17,70 +20,149 @@ class SharePage extends StatefulWidget {
 }
 
 class _SharePageState extends State<SharePage> {
+  // Biến loading
+  bool _isLoading = false;
+  // Dữ liệu nhóm
+  List<Group> _groups = [];
+  String username = "";
+  String currentUserId = "";
 
   @override
-void initState() {
-  super.initState();
-  SystemChrome.setSystemUIOverlayStyle(
-    const SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent, // làm trong suốt
-      statusBarIconBrightness: Brightness.light, // icon trắng
-      statusBarBrightness: Brightness.dark, // iOS
-    ),
-  );
-}
+  void initState() {
+    super.initState();
+    SystemChrome.setSystemUIOverlayStyle(
+      const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.light,
+        statusBarBrightness: Brightness.dark,
+      ),
+    );
+    _loadUsernameAndFetchGroups();
+  }
 
-  // Dữ liệu mô phỏng từ API/Database
-  // Khởi tạo với một vài nhóm để hiển thị
-  List<Group> _groups = [
-    Group(id: "", name: "Trọ", number: 3, members: ["Hiển", "Đạt", "Trọng"]),
-  ];
-  
-  // Bạn có thể thêm biến _isLoading = false; nếu muốn quản lý trạng thái API
-  // Future<void> _fetchGroups() async { ... }
+  Future<void> _loadUsernameAndFetchGroups() async {
+    username = await SharedPreferenceUtil.getUsername();
+    currentUserId = await SharedPreferenceUtil.getUserId();
+    await _fetchGroups();
+  }
 
-  void _addGroup() {
-    
+  Future<void> _fetchGroups() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    ApiUtil.getInstance()!.get(
+      url: "http://localhost:3004/my", 
+      onSuccess: (response) {
+        // response.data [ {id, name, ownerName, memberNames: []}, ... ]
+        // Map sang Model Group
+        // Model Group: id, name, number, members
+        // API Return: _id (mongodb?), name, ownerName, memberNames
+        
+        try {
+          final List<dynamic> data = response.data;
+          final List<Group> fetchedGroups = data.map((item) {
+            
+            // Xử lý members
+            List<Member> groupMembers = [];
+            String? currentMemberName;
+            int joinedCount = 0;
+            int totalCount = 0;
+
+            if (item["members"] != null) {
+              final List<dynamic> membersData = item["members"];
+              totalCount = membersData.length;
+              
+              for (var m in membersData) {
+                final member = Member.fromJson(m is Map ? Map<String, dynamic>.from(m) : {});
+                groupMembers.add(member);
+                
+                if (member.joined) {
+                  joinedCount++;
+                  // Nhận diện mình dựa trên userId
+                  if (member.userId != null && member.userId == currentUserId) {
+                    currentMemberName = member.name;
+                  }
+                }
+              }
+            } else {
+               // Fallback
+               joinedCount = item["joinedMemberCount"] ?? 0;
+               totalCount = item["memberCount"] ?? 0;
+            }
+
+            return Group(
+              id: (item["id"] ?? item["groupId"] ?? "").toString(), 
+              name: (item["name"] ?? "No Name").toString(), 
+              code: (item["code"] ?? "").toString(),
+              number: joinedCount, 
+              totalMembers: totalCount,
+              members: groupMembers,
+              memberName: currentMemberName,
+            );
+          }).toList();
+
+          setState(() {
+            _groups = fetchedGroups;
+            _isLoading = false;
+          });
+        } catch (e) {
+          print("Error parsing groups: $e");
+          setState(() {
+            _isLoading = false;
+          });
+        }
+      },
+      onError: (error) {
+        print("Error fetching groups: $error");
+        setState(() {
+          _isLoading = false;
+        });
+      },
+    );
+  }
+
+  void _addGroup() async {
     print("Mở màn hình tạo nhóm mới...");
-    Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => CreateGroupPage()),
-              );
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => CreateGroupPage()),
+    );
+    // Sau khi tạo xong và back về, reload lại list
+    _fetchGroups();
   }
 
   void _navigateToGroupDetail(Group group) {
-    // Logic khi nhấn vào một nhóm
     Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => TransactionGroupPage(name: group.name,),
-                    ),
-                  );
+      context,
+      MaterialPageRoute(
+        builder: (context) => TransactionGroupPage(group: group),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background, // Nền trắng tương đồng
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text(
-          'Danh sách nhóm',
-          // style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
-        ),
+        title: const Text('Danh sách nhóm'),
         backgroundColor: AppColors.background,
-        elevation: 0, // Không có bóng dưới AppBar
+        elevation: 0,
         actions: [
           Padding(
             padding: const EdgeInsets.all(8.0),
             child: InkWell(
-              onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => JoinGroupScreen()),
-              );
-            },
-              child: Text("Tham gia nhóm", 
-              style: AppStyles.linkText16_500,
+              onTap: () async {
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => JoinGroupScreen()),
+                );
+                _fetchGroups();
+              },
+              child: Text(
+                "Tham gia nhóm", 
+                style: AppStyles.linkText16_500,
               ),
             ),
           ),
@@ -91,26 +173,24 @@ void initState() {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // 1. Danh sách các nhóm (hoặc Placeholder nếu rỗng)
             Expanded(
-              child: _groups.isEmpty
-                  ? Center(
-                      child: Text(
-                        'Create your group now',
-                        style: TextStyle(fontSize: 16, color: Colors.grey[600]),
-                      ),
-                    )
-                  : ListView.builder(
-                      itemCount: _groups.length,
-                      itemBuilder: (context, index) {
-                        return _buildGroupItem(_groups[index]);
-                      },
-                    ),
+              child: _isLoading 
+                  ? const Center(child: CircularProgressIndicator())
+                  : _groups.isEmpty
+                      ? Center(
+                          child: Text(
+                            'Create your group now',
+                            style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+                          ),
+                        )
+                      : ListView.builder(
+                          itemCount: _groups.length,
+                          itemBuilder: (context, index) {
+                            return _buildGroupItem(_groups[index]);
+                          },
+                        ),
             ),
-
             const SizedBox(height: 20),
-
-            // 2. Nút "Add group"
             _buildAddGroupButton(),
           ],
         ),
@@ -143,19 +223,34 @@ void initState() {
               ),
           child: Row(
             children: [
-              Text(
-                group.name,
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.grey[700],
-                ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                   Text(
+                    group.name,
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey[700],
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    "Code: ${group.code}",
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: AppColors.green,
+                    ),
+                  ),
+                ],
               ),
               Spacer(),
               Icon(BootstrapIcons.people_fill),
               SizedBox(width: 10,),
               Text(
-                "${group.number}",
+                "${group.number}/${group.totalMembers}",
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
