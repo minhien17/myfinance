@@ -4,6 +4,7 @@ import 'package:my_finance/pages/setting/child_page/about_page.dart';
 import 'package:my_finance/pages/setting/child_page/my_account_page.dart';
 import 'package:my_finance/pages/setting/child_page/setting_page.dart';
 import 'package:my_finance/pages/setting/child_page/support_page.dart';
+import 'package:my_finance/res/app_colors.dart';
 import 'package:my_finance/shared_preference.dart';
 
 class AccountPage extends StatefulWidget {
@@ -37,8 +38,11 @@ class _AccountPageState extends State<AccountPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppColors.background,
+
       appBar: AppBar(
         title: Text("Tài khoản"),
+        backgroundColor: AppColors.background,
       ),
       body: SingleChildScrollView(
         child: Column(

@@ -1,5 +1,6 @@
 import 'package:bootstrap_icons/bootstrap_icons.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:my_finance/pages/add/add_page.dart';
 import 'package:my_finance/pages/home/home_page.dart';
 import 'package:my_finance/pages/setting/account_page.dart';
@@ -75,51 +76,58 @@ class _MainPageState extends State<MainPage> {
     //   SharePage(),
     //   AccountPage()
     // ];
-    return Scaffold(
-      body: SafeArea(
-        child: Center(
-          child: _widgetOptions[_selectedIndex],
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+    value: const SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent, // Hoặc màu cụ thể bạn muốn
+      statusBarIconBrightness: Brightness.dark, 
+    ),
+      child: Scaffold(
+        backgroundColor: AppColors.background,
+        body: SafeArea(
+          child: Center(
+            child: _widgetOptions[_selectedIndex],
+          ),
         ),
-      ),
-      bottomNavigationBar: BottomNavigationBar(
-        backgroundColor: Colors.white,
-        type: BottomNavigationBarType.fixed,
-        currentIndex: _selectedIndex,
-        onTap: _onItemTapped,
-        items: [
-          BottomNavigationBarItem(
-            icon: Icon(BootstrapIcons.house_door),
-            label: "Trang chủ",
-            
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(BootstrapIcons.wallet2),
-            label: "Chi tiêu",
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(
-              BootstrapIcons.plus_circle_fill,
-              color: Colors.green,
-              size: 30,
+        bottomNavigationBar: BottomNavigationBar(
+          backgroundColor: Colors.white,
+          type: BottomNavigationBarType.fixed,
+          currentIndex: _selectedIndex,
+          onTap: _onItemTapped,
+          items: [
+            BottomNavigationBarItem(
+              icon: Icon(BootstrapIcons.house_door),
+              label: "Trang chủ",
+              
             ),
-            label: "Thêm",
+            BottomNavigationBarItem(
+              icon: Icon(BootstrapIcons.wallet2),
+              label: "Chi tiêu",
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(
+                BootstrapIcons.plus_circle_fill,
+                color: Colors.green,
+                size: 30,
+              ),
+              label: "Thêm",
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(BootstrapIcons.people),
+              label: "Chia nhóm",
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(BootstrapIcons.person),
+              label: "Tài khoản",
+            ),
+          ],
+          selectedItemColor: AppColors.title,
+          unselectedItemColor: AppColors.grayText,
+          selectedLabelStyle: const TextStyle(color: AppColors.title),
+          unselectedLabelStyle: const TextStyle(
+            color: AppColors.grayText,
           ),
-          BottomNavigationBarItem(
-            icon: Icon(BootstrapIcons.people),
-            label: "Chia nhóm",
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(BootstrapIcons.person),
-            label: "Tài khoản",
-          ),
-        ],
-        selectedItemColor: AppColors.title,
-        unselectedItemColor: AppColors.grayText,
-        selectedLabelStyle: const TextStyle(color: AppColors.title),
-        unselectedLabelStyle: const TextStyle(
-          color: AppColors.grayText,
+          showUnselectedLabels: true,
         ),
-        showUnselectedLabels: true,
       ),
     );
   }

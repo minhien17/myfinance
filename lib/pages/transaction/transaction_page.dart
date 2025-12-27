@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:my_finance/api/api_util.dart';
 import 'package:my_finance/common/flutter_toast.dart';
 import 'package:my_finance/models/list_icon.dart';
@@ -260,204 +261,206 @@ class _TransactionPageState extends State<TransactionPage> {
     double width = MediaQuery.of(context).size.width;
 
     return Scaffold(
-      backgroundColor: AppColors.background,
-      body: CustomScrollView(
-        slivers: [
-          SliverAppBar(
-            pinned: true,
-            backgroundColor: Colors.white,
-            toolbarHeight: 160,
-            flexibleSpace: Column(
-              children: [
-                Container(
-                  padding: const EdgeInsets.only(top: 15, right: 5),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      SizedBox(width: width / 3),
-                      Container(
-                        width: width / 3,
-                        child: Column(
-                          children: [
-                            const Text("Số dư",
-                                style: TextStyle(color: Colors.grey)),
-                            const SizedBox(height: 5),
-                            Text(
-                              "${Common.formatNumber(_balance.toString())} đ",
-                              style: const TextStyle(
-                                  fontSize: 18, fontWeight: FontWeight.bold),
-                            ),
-                            SizedBox(
-                                height: 30, child: Image.asset("assets/icons/wallet.png")
-                                ),
-                          ],
-                        ),
-                      ),
-                      Container(
-                        height: 80,
-                        width: width / 3 - 10,
-                        alignment: Alignment.topRight,
-                        child: Row(
-                          children: [
-                            const Spacer(),
-                            IconButton(
-                              onPressed: () {
-                                reLoadPage();
-                              },
-                              icon: const Icon(Icons.refresh),
-                            ),
-                            IconButton(
-                              onPressed: () {},
-                              icon: const Icon(Icons.more_vert),
-                            ),
-                          ],
-                        ),
-                      )
-                    ],
-                  ),
-                ),
-                SizedBox(height: 5,),
-                Container(
-                height: 34,
-                margin: const EdgeInsets.only(bottom: 8),
-                child: ListView.builder(
-                  scrollDirection: Axis.horizontal,
-                  controller: _scrollController, // 👈 Gán controller
-                  itemCount: months.length,
-                  itemBuilder: (context, index) {
-                    final monthValue = months[index];
-                    final isSelected = monthValue == selectedMonth;
-                    return GestureDetector(
-                      onTap: () async {
-                        if (isSelected) return;
-                        setState(() => selectedMonth = monthValue);
-                        _scrollToSelected();
-
-                        // 🔸 Gọi API khi đổi tháng
-                        getListTransaction(selectedMonth);
-                      },
-                      child: Container(
-                        width: width /3,
-                        margin: const EdgeInsets.symmetric(horizontal: 4),
-                        decoration: BoxDecoration(
-                          color: isSelected
-                              ? Colors.green.withOpacity(0.1)
-                              : Colors.transparent,
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: isSelected ? Colors.green : Colors.grey.shade300,
-                          ),
-                        ),
-                        child: Center(
-                          child: Text(
-                            months[index],
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight:
-                                  isSelected ? FontWeight.w500 : FontWeight.normal,
-                              color: isSelected ? Colors.green : Colors.black,
-                            ),
-                          ),
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-              ],
-            ),
-          ),
-          SliverList(
-            delegate: SliverChildListDelegate([
-              Container(
-                padding: const EdgeInsets.all(20),
-                color: Colors.white,
-                child: Column(
+      body: SafeArea(
+        child: RefreshIndicator(
+          onRefresh: () async {
+            reLoadPage();
+          },
+          child: CustomScrollView(
+            
+            slivers: [
+              SliverAppBar(
+                pinned: true,
+                backgroundColor: Colors.white,
+                toolbarHeight: 160,
+                flexibleSpace: Column(
                   children: [
-                    Row(
-                      children: [
-                        const Text("Thu nhập", style: TextStyle(
-                                fontSize: 16)),
-                        const Spacer(),
-                        Text(Common.formatNumber(_totalIncome.toString()),
-                            style: const TextStyle(color: Colors.blue, fontSize: 16)),
-                      ],
+                    Container(
+                      padding: const EdgeInsets.only(top: 15, right: 5),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          // SizedBox(width: width / 3),
+                          Container(
+                            width: width / 3,
+                            child: Column(
+                              children: [
+                                const Text("Số dư",
+                                    style: TextStyle(color: Colors.grey)),
+                                const SizedBox(height: 5),
+                                Text(
+                                  "${Common.formatNumber(_balance.toString())} đ",
+                                  style: const TextStyle(
+                                      fontSize: 18, fontWeight: FontWeight.bold),
+                                ),
+                                SizedBox(
+                                    height: 30, child: Image.asset("assets/icons/wallet.png")
+                                    ),
+                              ],
+                            ),
+                          ),
+                          // Container(
+                          //   height: 80,
+                          //   width: width / 3 - 10,
+                          //   alignment: Alignment.topRight,
+                          //   child: Row(
+                          //     children: [
+                          //       const Spacer(),
+                                
+                          //       IconButton(
+                          //         onPressed: () {},
+                          //         icon: const Icon(Icons.more_vert),
+                          //       ),
+                          //     ],
+                          //   ),
+                          // )
+                        ],
+                      ),
                     ),
-                    const SizedBox(height: 5),
-                    Row(
-                      children: [
-                        const Text("Đã chi",
-                            style: TextStyle( fontSize: 16)),
-                        const Spacer(),
-                        Text(Common.formatNumber(_totalExpense.toString()),
-                            style: const TextStyle(color: Colors.red, fontSize: 16)),
-                      ],
-                    ),
-                    Divider(height: 16, thickness: 0.5, indent: width / 2),
-                    Row(
-                      children: [
-                        const Spacer(),
-                        Text(Common.formatNumber((_totalIncome - _totalExpense).toString()),
-                            style: const TextStyle(
-                                fontSize: 18, fontWeight: FontWeight.bold)),
-                      ],
-                    ),
-                    const SizedBox(height: 15),
-                    ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.white, // Màu nền
-          foregroundColor: AppColors.title, // Màu chữ/icon
-          
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-            side: const BorderSide( // 🔹 Thêm viền ngoài
-          color: Colors.black12, // Màu viền
-          width: 1,              // Độ dày
-        ),
-          ),
-          elevation: 10, // Độ đổ bóng tương tự BoxShadow blurRadius: 4
-          shadowColor: Colors.black12, // Màu bóng
-          
-        ),
-                      onPressed: (){
-                        Map<String, double> categoryMap = {};
-                        for (var t in lists) {
-                          if (t.category.toLowerCase() != 'income') {
-                            categoryMap[t.category] = (categoryMap[t.category] ?? 0) + t.amount;
-                          }
-                        }
-                        final mapReport = {
-                          "totals": {
-                            "income": _totalIncome,
-                            "expense": _totalExpense,
-                            "balance": _balance
+                    SizedBox(height: 5,),
+                    Container(
+                    height: 34,
+                    margin: const EdgeInsets.only(bottom: 8),
+                    child: ListView.builder(
+                      scrollDirection: Axis.horizontal,
+                      controller: _scrollController, // 👈 Gán controller
+                      itemCount: months.length,
+                      itemBuilder: (context, index) {
+                        final monthValue = months[index];
+                        final isSelected = monthValue == selectedMonth;
+                        return GestureDetector(
+                          onTap: () async {
+                            if (isSelected) return;
+                            setState(() => selectedMonth = monthValue);
+                            _scrollToSelected();
+              
+                            // 🔸 Gọi API khi đổi tháng
+                            getListTransaction(selectedMonth);
                           },
-                          "data": categoryMap
-                        };
-                        Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => ReportPage(month: selectedMonth, 
-                              transactionsMap: mapReport, 
+                          child: Container(
+                            width: width /3,
+                            margin: const EdgeInsets.symmetric(horizontal: 4),
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? Colors.green.withOpacity(0.1)
+                                  : Colors.transparent,
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: isSelected ? Colors.green : Colors.grey.shade300,
                               ),
                             ),
-                          );
+                            child: Center(
+                              child: Text(
+                                months[index],
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight:
+                                      isSelected ? FontWeight.w500 : FontWeight.normal,
+                                  color: isSelected ? Colors.green : Colors.black,
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
                       },
-                      child: Text("Xem thống kê tháng này", style: AppStyles.titleText16_500.copyWith(fontSize: 14),),
                     ),
+                  ),
                   ],
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.only(top: 15),
-                color: AppColors.background,
-                child: _loading ? 
-                Center(child: CircularProgressIndicator(),) :
-                Column(children: [...buildExpenseList(lists, context)]),
+              SliverList(
+                delegate: SliverChildListDelegate([
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    color: Colors.white,
+                    child: Column(
+                      children: [
+                        Row(
+                          children: [
+                            const Text("Thu nhập", style: TextStyle(
+                                    fontSize: 16)),
+                            const Spacer(),
+                            Text(Common.formatNumber(_totalIncome.toString()),
+                                style: const TextStyle(color: Colors.blue, fontSize: 16)),
+                          ],
+                        ),
+                        const SizedBox(height: 5),
+                        Row(
+                          children: [
+                            const Text("Đã chi",
+                                style: TextStyle( fontSize: 16)),
+                            const Spacer(),
+                            Text(Common.formatNumber(_totalExpense.toString()),
+                                style: const TextStyle(color: Colors.red, fontSize: 16)),
+                          ],
+                        ),
+                        Divider(height: 16, thickness: 0.5, indent: width / 2),
+                        Row(
+                          children: [
+                            const Spacer(),
+                            Text(Common.formatNumber((_totalIncome - _totalExpense).toString()),
+                                style: const TextStyle(
+                                    fontSize: 18, fontWeight: FontWeight.bold)),
+                          ],
+                        ),
+                        const SizedBox(height: 15),
+                        ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.white, // Màu nền
+              foregroundColor: AppColors.title, // Màu chữ/icon
+              
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+                side: const BorderSide( // 🔹 Thêm viền ngoài
+              color: Colors.black12, // Màu viền
+              width: 1,              // Độ dày
+            ),
               ),
-            ]),
+              elevation: 10, // Độ đổ bóng tương tự BoxShadow blurRadius: 4
+              shadowColor: Colors.black12, // Màu bóng
+              
+            ),
+                          onPressed: (){
+                            Map<String, double> categoryMap = {};
+                            for (var t in lists) {
+                              if (t.category.toLowerCase() != 'income') {
+                                categoryMap[t.category] = (categoryMap[t.category] ?? 0) + t.amount;
+                              }
+                            }
+                            final mapReport = {
+                              "totals": {
+                                "income": _totalIncome,
+                                "expense": _totalExpense,
+                                "balance": _balance
+                              },
+                              "data": categoryMap
+                            };
+                            Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => ReportPage(month: selectedMonth, 
+                                  transactionsMap: mapReport, 
+                                  ),
+                                ),
+                              );
+                          },
+                          child: Text("Xem thống kê tháng này", style: AppStyles.titleText16_500.copyWith(fontSize: 14),),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.only(top: 15),
+                    color: AppColors.background,
+                    child: _loading ? 
+                    Center(child: CircularProgressIndicator(),) :
+                    Column(children: [...buildExpenseList(lists, context)]),
+                  ),
+                ]),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

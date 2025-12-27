@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:my_finance/api/api_util.dart';
 import 'package:my_finance/models/list_icon.dart';
 import 'package:my_finance/models/transaction_model.dart';
@@ -145,290 +146,291 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppColors.background,
       body: SafeArea(
-        child: SingleChildScrollView(
-          child: Container(
-            color: AppColors.background,
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              children: [
-                // ====== Tổng số dư ======
-                Row(
-                  children: [
-                    Text(
-                      _isVisible
-                          ? "${Common.formatNumber(_balance.toString())} đ"
-                          : "*********",
-                      style: AppStyles.title,
-                    ),
-                    const SizedBox(width: 5),
-                    IconButton(
-                      onPressed: _toggleVisible,
-                      icon: _isVisible
-                          ? const Icon(Icons.visibility)
-                          : const Icon(Icons.visibility_off),
-                    ),
-                    const Spacer(),
-                    IconButton(
-                      onPressed: () {
-                        reLoadPage();
-                      },
-                      icon: const Icon(Icons.refresh),
-                    ),
-                    IconButton(onPressed: (){
-                      showInstantNotification();
-                    }, icon: Icon(Icons.notifications),)
-
-                  ],
-                ),
-                Row(
-                  children: [
-                    Text(
-                      "Số dư",
-                      style: AppStyles.grayText16_500.copyWith(fontSize: 14),
-                    ),
-                    Icon(Icons.question_mark_rounded, color: AppColors.grayText),
-                  ],
-                ),
-                const SizedBox(height: 30),
-          
-                // ====== Ví của tôi ======
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(15),
-                    color: Colors.white,
-                  ),
-                  child: Column(
+        child: RefreshIndicator(
+          onRefresh: () async {
+            reLoadPage(); // Gọi hàm reload dữ liệu
+          },
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(), // Đảm bảo luôn có thể kéo để refresh
+            child: Container(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                children: [
+                  // ====== Tổng số dư ======
+                  Row(
                     children: [
-                      Row(
-                        children: [
-                          Text(
-                            "Ví của tôi",
-                            style: AppStyles.titleText18_500,
-                          ),
-                          const Spacer(),
-                          
-                        ],
+                      Text(
+                        _isVisible
+                            ? "${Common.formatNumber(_balance.toString())} đ"
+                            : "*********",
+                        style: AppStyles.title,
                       ),
-                      Container(
-                        height: 1,
-                        color: AppColors.grayText,
-                        margin: const EdgeInsets.symmetric(vertical: 15),
+                      const SizedBox(width: 5),
+                      IconButton(
+                        onPressed: _toggleVisible,
+                        icon: _isVisible
+                            ? const Icon(Icons.visibility)
+                            : const Icon(Icons.visibility_off),
                       ),
-                      Row(
-                        children: [
-                          Image.asset(
-                            "assets/icons/wallet.png",
-                            height: 30,
-                          ),
-                          const SizedBox(width: 10),
-                          Text(
-                            "Tổng chi",
-                            style: AppStyles.titleText16_500,
-                          ),
-                          const Spacer(),
-                          Text(
-                                  Common.formatNumber(_totalExpense.toString()),
-                                  style: AppStyles.redText16.copyWith(fontWeight: FontWeight.w600),
-                                ),
-                        ],
-                      ),
-                      SizedBox(height: 10,),
-                      Row(
-                        children: [
-                          Image.asset(
-                            "assets/icons/ic_launcher.png",
-                            height: 30,
-                          ),
-                          const SizedBox(width: 10),
-                          Text(
-                            "Tổng thu",
-                            style: AppStyles.titleText16_500,
-                          ),
-                          const Spacer(),
-                          Text(
-                                  Common.formatNumber(_totalIncome.toString()),
-                                  style: AppStyles.blueText16_500,
-                                ),
-                        ],
-                      ),
+                      const Spacer(),
+                      
+                      IconButton(onPressed: (){
+                        showInstantNotification();
+                      }, icon: Icon(Icons.notifications),)
+        
                     ],
                   ),
-                ),
-          
-                const SizedBox(height: 30),
-          
-                // ====== Báo cáo tháng ======
-                Row(
-                  children: [
-                    Text(
-                      "Thống kê",
-                      style: AppStyles.grayText16_500,
-                    ),
-                    const Spacer(),
-                    InkWell(
-                      onTap: () {
-                        Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => ReportPage(month: selectedMonth,
-                              transactionsMap: summaryData, // Dữ liệu từ API /transactions/summary
-                              ),
-                            ),
-                          );
-                      },
-                      child: Text(
-                        "Xem chi tiết",
-                        style: AppStyles.linkText16_500,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-          
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(15),
-                    color: Colors.white,
-                  ),
-                  child: Column(
+                  Row(
                     children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          
-                          Text(
-                            "Tổng chi: ",
-                            style: AppStyles.titleText16_500,
-                          ),
-
-                          Text(
-                                  Common.formatNumber(_totalExpense.toString()),
-                                  style: AppStyles.redText16.copyWith(fontWeight: FontWeight.w600),
-                                ),
-                        ],
+                      Text(
+                        "Số dư",
+                        style: AppStyles.grayText16_500.copyWith(fontSize: 14),
                       ),
-                      Container(
-                            margin: EdgeInsets.only(top: 40, right: 10, bottom: 20),
-                            child: SpendingCompareChart(currentMonthTotals: currentMonthTotals, previousMonthTotals: previousMonthTotals,),
-                          ),
-                      Padding(
-                        padding: EdgeInsets.all(8.0),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
+                      Icon(Icons.question_mark_rounded, color: AppColors.grayText),
+                    ],
+                  ),
+                  const SizedBox(height: 30),
+                
+                  // ====== Ví của tôi ======
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(15),
+                      color: Colors.white,
+                    ),
+                    child: Column(
+                      children: [
+                        Row(
                           children: [
-                            // 1. Mục "Tháng này" (Chấm tròn Đỏ)
-                            Expanded(
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Padding(
-                                    padding: const EdgeInsets.only(right: 8),
-                                    child: Container(
-                                      width: 15,
-                                      height: 15,
-                                      decoration: const BoxDecoration(
-                                        color: Colors.red,
-                                        shape: BoxShape.circle,
-                                      ),
-                                    ),
-                                  ),
-                                  const Flexible(
-                                    child: Text(
-                                      'Tháng này',
-                                      overflow: TextOverflow.ellipsis,
-                                      style: TextStyle(fontSize: 12),
-                                    ),
-                                  ),
-                                ],
-                              ),
+                            Text(
+                              "Ví của tôi",
+                              style: AppStyles.titleText18_500,
+                            ),
+                            const Spacer(),
+                            
+                          ],
+                        ),
+                        Container(
+                          height: 1,
+                          color: AppColors.grayText,
+                          margin: const EdgeInsets.symmetric(vertical: 15),
+                        ),
+                        Row(
+                          children: [
+                            Image.asset(
+                              "assets/icons/wallet.png",
+                              height: 30,
                             ),
                             const SizedBox(width: 10),
-                            // 2. Mục "Trung bình 3 tháng trước"
-                            Expanded(
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Padding(
-                                    padding: const EdgeInsets.only(right: 8),
-                                    child: Container(
-                                      width: 15,
-                                      height: 15,
-                                      decoration: const BoxDecoration(
-                                        color: Colors.grey,
-                                        shape: BoxShape.circle,
-                                      ),
-                                    ),
-                                  ),
-                                  const Flexible(
-                                    child: Text(
-                                      'Trung bình 3 tháng trước',
-                                      overflow: TextOverflow.ellipsis,
-                                      style: TextStyle(fontSize: 12),
-                                    ),
-                                  ),
-                                ],
-                              ),
+                            Text(
+                              "Tổng chi",
+                              style: AppStyles.titleText16_500,
                             ),
+                            const Spacer(),
+                            Text(
+                                    Common.formatNumber(_totalExpense.toString()),
+                                    style: AppStyles.redText16.copyWith(fontWeight: FontWeight.w600),
+                                  ),
                           ],
+                        ),
+                        SizedBox(height: 10,),
+                        Row(
+                          children: [
+                            Image.asset(
+                              "assets/icons/ic_launcher.png",
+                              height: 30,
+                            ),
+                            const SizedBox(width: 10),
+                            Text(
+                              "Tổng thu",
+                              style: AppStyles.titleText16_500,
+                            ),
+                            const Spacer(),
+                            Text(
+                                    Common.formatNumber(_totalIncome.toString()),
+                                    style: AppStyles.blueText16_500,
+                                  ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                
+                  const SizedBox(height: 30),
+                
+                  // ====== Báo cáo tháng ======
+                  Row(
+                    children: [
+                      Text(
+                        "Thống kê",
+                        style: AppStyles.grayText16_500,
+                      ),
+                      const Spacer(),
+                      InkWell(
+                        onTap: () {
+                          Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => ReportPage(month: selectedMonth,
+                                transactionsMap: summaryData, // Dữ liệu từ API /transactions/summary
+                                ),
+                              ),
+                            );
+                        },
+                        child: Text(
+                          "Xem chi tiết",
+                          style: AppStyles.linkText16_500,
                         ),
                       ),
                     ],
                   ),
-                ),
-                const SizedBox(height: 20),
-          
-                // Top spending
-                Row(
-                  children: [
-                    Text(
-                      "Chi tiêu hàng đầu",
-                      style: AppStyles.grayText16_500,
+                  const SizedBox(height: 10),
+                
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(15),
+                      color: Colors.white,
                     ),
-                    const Spacer(),
-                    InkWell(
-                      onTap: () {
-                        Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => ReportPage(month: selectedMonth, 
-                              transactionsMap: _getReportData(), 
-                              ),
+                    child: Column(
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            
+                            Text(
+                              "Tổng chi: ",
+                              style: AppStyles.titleText16_500,
                             ),
-                          );
-                      },
-                      child: Text(
-                        "Xem chi tiết",
-                        style: AppStyles.linkText16_500,
-                      ),
+          
+                            Text(
+                                    Common.formatNumber(_totalExpense.toString()),
+                                    style: AppStyles.redText16.copyWith(fontWeight: FontWeight.w600),
+                                  ),
+                          ],
+                        ),
+                        Container(
+                              margin: EdgeInsets.only(top: 40, right: 10, bottom: 20),
+                              child: SpendingCompareChart(currentMonthTotals: currentMonthTotals, previousMonthTotals: previousMonthTotals,),
+                            ),
+                        Padding(
+                          padding: EdgeInsets.all(8.0),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              // 1. Mục "Tháng này" (Chấm tròn Đỏ)
+                              Expanded(
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Padding(
+                                      padding: const EdgeInsets.only(right: 8),
+                                      child: Container(
+                                        width: 15,
+                                        height: 15,
+                                        decoration: const BoxDecoration(
+                                          color: Colors.red,
+                                          shape: BoxShape.circle,
+                                        ),
+                                      ),
+                                    ),
+                                    const Flexible(
+                                      child: Text(
+                                        'Tháng này',
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(fontSize: 12),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              // 2. Mục "Trung bình 3 tháng trước"
+                              Expanded(
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Padding(
+                                      padding: const EdgeInsets.only(right: 8),
+                                      child: Container(
+                                        width: 15,
+                                        height: 15,
+                                        decoration: const BoxDecoration(
+                                          color: Colors.grey,
+                                          shape: BoxShape.circle,
+                                        ),
+                                      ),
+                                    ),
+                                    const Flexible(
+                                      child: Text(
+                                        'Trung bình 3 tháng trước',
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(fontSize: 12),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
-                    
-                  ],
-                ),
-                const SizedBox(height: 10),
-
-                Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: const [
-                    BoxShadow(
-                      blurRadius: 5,
-                      color: Colors.black12,
-                      offset: Offset(0, 2),
-                    )
-                  ],
-                ),
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  children: [
-                    ...buildExpenseList(listTop5,context)
-                  ],
-                ),
-              )
-              ],
+                  ),
+                  const SizedBox(height: 20),
+                
+                  // Top spending
+                  Row(
+                    children: [
+                      Text(
+                        "Chi tiêu hàng đầu",
+                        style: AppStyles.grayText16_500,
+                      ),
+                      const Spacer(),
+                      InkWell(
+                        onTap: () {
+                          Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => ReportPage(month: selectedMonth, 
+                                transactionsMap: _getReportData(), 
+                                ),
+                              ),
+                            );
+                        },
+                        child: Text(
+                          "Xem chi tiết",
+                          style: AppStyles.linkText16_500,
+                        ),
+                      ),
+                      
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+        
+                  Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: const [
+                      BoxShadow(
+                        blurRadius: 5,
+                        color: Colors.black12,
+                        offset: Offset(0, 2),
+                      )
+                    ],
+                  ),
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    children: [
+                      ...buildExpenseList(listTop5,context)
+                    ],
+                  ),
+                )
+                ],
+              ),
             ),
           ),
         ),
