@@ -7,6 +7,7 @@ import 'package:my_finance/common/loading_dialog.dart';
 import 'package:my_finance/models/icon.dart';
 import 'package:my_finance/models/list_icon.dart';
 import 'package:my_finance/models/transaction_model.dart';
+import 'package:my_finance/pages/add/text_analysis_page.dart';
 import 'package:my_finance/res/app_colors.dart';
 
 class AddExpensePage extends StatefulWidget {
@@ -75,6 +76,24 @@ class _AddExpensePageState extends State<AddExpensePage> {
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text('Thêm chi tiêu'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.text_fields, color: Colors.black),
+            tooltip: 'Nhập văn bản',
+            onPressed: () async {
+              final result = await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const TextAnalysisPage(),
+                ),
+              );
+              // Nếu đã lưu thành công, quay về trang chính
+              if (result == true && mounted) {
+                Navigator.pop(context, true);
+              }
+            },
+          ),
+        ],
       ),
       body: Container(
         

@@ -28,7 +28,10 @@ class PaymentItem {
   final double amount;
   final String expenseTitle;
   final String category;
-  final String from; // Tên người
+  final String? from; // Tên người (cho "received")
+  final String? to; // Tên người (cho "paid")
+  final String? fromMemberId; // ID người trả (cho "received")
+  final String? toMemberId; // ID người nhận (cho "paid")
   final String? note;
 
   PaymentItem({
@@ -37,19 +40,34 @@ class PaymentItem {
     required this.amount,
     required this.expenseTitle,
     required this.category,
-    required this.from,
+    this.from,
+    this.to,
+    this.fromMemberId,
+    this.toMemberId,
     this.note,
   });
 
   factory PaymentItem.fromJson(Map<String, dynamic> json) {
+    // Helper để parse field, convert "null" string thành null
+    String? parseNullableString(dynamic value) {
+      if (value == null) return null;
+      if (value == 'null') return null;  // String "null"
+      final str = value.toString();
+      if (str.isEmpty || str == 'null') return null;
+      return str;
+    }
+
     return PaymentItem(
       date: json['date'] != null ? DateTime.parse(json['date']) : DateTime.now(),
       type: json['type'] ?? '',
       amount: Common.parseDouble(json['amount']),
       expenseTitle: json['expenseTitle'] ?? '',
       category: json['category'] ?? '',
-      from: json['from'] ?? '',
-      note: json['note'],
+      from: parseNullableString(json['from']),
+      to: parseNullableString(json['to']),
+      fromMemberId: parseNullableString(json['fromMemberId']),
+      toMemberId: parseNullableString(json['toMemberId']),
+      note: parseNullableString(json['note']),
     );
   }
 }

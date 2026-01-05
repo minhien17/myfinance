@@ -177,13 +177,32 @@ class _AddTransactionGroupPageState extends State<AddTransactionGroupPage> {
       allParticipants.add(selectedMemberId);
     }
 
+    // 🔥 Lấy userId của người trả tiền
+    final paidByMember = members.firstWhere(
+      (m) => m.id == selectedMemberId,
+      orElse: () => Member(id: '', name: ''),
+    );
+
+    // 🔥 Tạo danh sách participants với cả memberId và userId
+    final participantsWithUserId = allParticipants.map((memberId) {
+      final member = members.firstWhere(
+        (m) => m.id == memberId,
+        orElse: () => Member(id: '', name: ''),
+      );
+      return {
+        "memberId": memberId,
+        "userId": member.userId,
+      };
+    }).toList();
+
     final body = {
       "title": note.isEmpty ? category : note,
       "amount": amount,
-      "category": category, // Thêm category
+      "category": category,
       "splitType": "equal",
       "paidByMemberId": selectedMemberId,
-      "participantMemberIds": allParticipants, // Bao gồm cả người trả
+      "paidByUserId": paidByMember.userId,
+      "participants": participantsWithUserId,
     };
 
     print("🔍 DEBUG - Request body: $body");

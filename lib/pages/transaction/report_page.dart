@@ -292,7 +292,7 @@ class _ReportPageState extends State<ReportPage> {
   }
 }
 
-Image itemLeading(String type) {
+Widget itemLeading(String type) {
   for (int i = 0; i < ListIcon.length; i++) {
     if (ListIcon[i].title == type) {
       return ListIcon[i].img;

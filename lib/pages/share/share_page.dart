@@ -11,7 +11,6 @@ import 'package:my_finance/res/app_styles.dart';
 import 'package:my_finance/api/api_util.dart';
 import 'package:my_finance/shared_preference.dart';
 
-
 class SharePage extends StatefulWidget {
   const SharePage({super.key});
 
@@ -52,17 +51,28 @@ class _SharePageState extends State<SharePage> {
     });
 
     ApiUtil.getInstance()!.get(
-      url: "http://localhost:3004/my", 
+      url: "http://localhost:3004/my",
       onSuccess: (response) {
         // response.data [ {id, name, ownerName, memberNames: []}, ... ]
         // Map sang Model Group
         // Model Group: id, name, number, members
         // API Return: _id (mongodb?), name, ownerName, memberNames
-        
+
         try {
           final List<dynamic> data = response.data;
+          print("🔍 SharePage - API /my returned ${data.length} groups");
+
           final List<Group> fetchedGroups = data.map((item) {
-            
+            print("🔍 SharePage - Processing group: ${item['name']}");
+            print(
+              "📋 SharePage - Group data has members? ${item['members'] != null}",
+            );
+            if (item["members"] != null) {
+              print(
+                "📋 SharePage - Members count in API response: ${(item['members'] as List).length}",
+              );
+            }
+
             // Xử lý members
             List<Member> groupMembers = [];
             String? currentMemberName;
@@ -72,11 +82,13 @@ class _SharePageState extends State<SharePage> {
             if (item["members"] != null) {
               final List<dynamic> membersData = item["members"];
               totalCount = membersData.length;
-              
+
               for (var m in membersData) {
-                final member = Member.fromJson(m is Map ? Map<String, dynamic>.from(m) : {});
+                final member = Member.fromJson(
+                  m is Map ? Map<String, dynamic>.from(m) : {},
+                );
                 groupMembers.add(member);
-                
+
                 if (member.joined) {
                   joinedCount++;
                   // Nhận diện mình dựa trên userId
@@ -86,20 +98,28 @@ class _SharePageState extends State<SharePage> {
                 }
               }
             } else {
-               // Fallback
-               joinedCount = item["joinedMemberCount"] ?? 0;
-               totalCount = item["memberCount"] ?? 0;
+              // Fallback
+              joinedCount = item["joinedMemberCount"] ?? 0;
+              totalCount = item["memberCount"] ?? 0;
             }
 
-            return Group(
-              id: (item["id"] ?? item["groupId"] ?? "").toString(), 
-              name: (item["name"] ?? "No Name").toString(), 
+            final group = Group(
+              id: (item["id"] ?? item["groupId"] ?? "").toString(),
+              name: (item["name"] ?? "No Name").toString(),
               code: (item["code"] ?? "").toString(),
-              number: joinedCount, 
+              number: joinedCount,
               totalMembers: totalCount,
               members: groupMembers,
               memberName: currentMemberName,
+              ownerId: (item["ownerId"] ?? item["ownerUserId"] ?? item["createdByUserId"])?.toString(),
             );
+
+            print(
+              "🔍 SharePage - Created group: ${group.name} with ${group.members.length} members, ownerId: ${group.ownerId}",
+            );
+            print("🔍 SharePage - Raw ownerId fields: ownerId=${item['ownerId']}, ownerUserId=${item['ownerUserId']}, createdByUserId=${item['createdByUserId']}");
+
+            return group;
           }).toList();
 
           setState(() {
@@ -132,13 +152,17 @@ class _SharePageState extends State<SharePage> {
     _fetchGroups();
   }
 
-  void _navigateToGroupDetail(Group group) {
-    Navigator.push(
+  void _navigateToGroupDetail(Group group) async {
+    final result = await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => TransactionGroupPage(group: group),
       ),
     );
+    // Nếu result = true (rời nhóm), reload danh sách
+    if (result == true) {
+      _fetchGroups();
+    }
   }
 
   @override
@@ -160,10 +184,7 @@ class _SharePageState extends State<SharePage> {
                 );
                 _fetchGroups();
               },
-              child: Text(
-                "Tham gia nhóm", 
-                style: AppStyles.linkText16_500,
-              ),
+              child: Text("Tham gia", style: AppStyles.linkText16_500),
             ),
           ),
         ],
@@ -174,21 +195,21 @@ class _SharePageState extends State<SharePage> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Expanded(
-              child: _isLoading 
+              child: _isLoading
                   ? const Center(child: CircularProgressIndicator())
                   : _groups.isEmpty
-                      ? Center(
-                          child: Text(
-                            'Create your group now',
-                            style: TextStyle(fontSize: 16, color: Colors.grey[600]),
-                          ),
-                        )
-                      : ListView.builder(
-                          itemCount: _groups.length,
-                          itemBuilder: (context, index) {
-                            return _buildGroupItem(_groups[index]);
-                          },
-                        ),
+                  ? Center(
+                      child: Text(
+                        'Create your group now',
+                        style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+                      ),
+                    )
+                  : ListView.builder(
+                      itemCount: _groups.length,
+                      itemBuilder: (context, index) {
+                        return _buildGroupItem(_groups[index]);
+                      },
+                    ),
             ),
             const SizedBox(height: 20),
             _buildAddGroupButton(),
@@ -211,23 +232,23 @@ class _SharePageState extends State<SharePage> {
           alignment: Alignment.centerLeft,
           padding: const EdgeInsets.symmetric(horizontal: 20),
           decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(10),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Colors.black12,
-                    offset: Offset(0, 2),
-                    blurRadius: 4,
-                  ),
-                ],
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(10),
+            boxShadow: const [
+              BoxShadow(
+                color: Colors.black12,
+                offset: Offset(0, 2),
+                blurRadius: 4,
               ),
+            ],
+          ),
           child: Row(
             children: [
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                   Text(
+                  Text(
                     group.name,
                     style: TextStyle(
                       fontSize: 16,
@@ -236,19 +257,43 @@ class _SharePageState extends State<SharePage> {
                     ),
                   ),
                   const SizedBox(height: 4),
-                  Text(
-                    "Code: ${group.code}",
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                      color: AppColors.green,
+                  GestureDetector(
+                    onTap: () {
+                      Clipboard.setData(ClipboardData(text: group.code));
+                      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Row(
+                            children: [
+                              const Icon(Icons.check_circle_outline, color: Colors.white),
+                              const SizedBox(width: 12),
+                              Text('Đã sao chép mã: ${group.code}'),
+                            ],
+                          ),
+                          backgroundColor: Colors.green.shade600,
+                          behavior: SnackBarBehavior.floating,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          margin: const EdgeInsets.all(16),
+                          duration: const Duration(seconds: 2),
+                        ),
+                      );
+                    },
+                    child: Text(
+                      "Code: ${group.code}",
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: AppColors.green,
+                      ),
                     ),
                   ),
                 ],
               ),
               Spacer(),
               Icon(BootstrapIcons.people_fill),
-              SizedBox(width: 10,),
+              SizedBox(width: 10),
               Text(
                 "${group.number}/${group.totalMembers}",
                 style: TextStyle(
@@ -269,25 +314,22 @@ class _SharePageState extends State<SharePage> {
     return ElevatedButton(
       onPressed: _addGroup,
       style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.white, // Màu nền
-          foregroundColor: AppColors.title, // Màu chữ/icon
-          minimumSize: const Size(double.infinity, 50),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-            side: const BorderSide( // 🔹 Thêm viền ngoài
-          color: Colors.black12, // Màu viền
-          width: 1,              // Độ dày
-        ),
+        backgroundColor: Colors.white, // Màu nền
+        foregroundColor: AppColors.title, // Màu chữ/icon
+        minimumSize: const Size(double.infinity, 50),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: const BorderSide(
+            // 🔹 Thêm viền ngoài
+            color: Colors.black12, // Màu viền
+            width: 1, // Độ dày
           ),
-          elevation: 4, // Độ đổ bóng tương tự BoxShadow blurRadius: 4
-          shadowColor: Colors.black12, // Màu bóng
-          
         ),
-
-      child: Text(
-        'Thêm nhóm',
-        style: AppStyles.titleText16_500
+        elevation: 4, // Độ đổ bóng tương tự BoxShadow blurRadius: 4
+        shadowColor: Colors.black12, // Màu bóng
       ),
+
+      child: Text('Thêm nhóm', style: AppStyles.titleText16_500),
     );
   }
 }

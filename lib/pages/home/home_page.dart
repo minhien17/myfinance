@@ -107,23 +107,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
     selectedMonth = '${now.month.toString().padLeft(2, '0')}/${now.year}';
-    // api để call đống tiền
+
     getApi();
-    // fake 
-
     getDataChart();
-
-    Map<String, dynamic> fakeApiData = generateFakeApiData(daysInMonth: 30);
-    // Chỉ lấy tổng tiền (total) từ currentMonth / previousMonth
-    currentMonthTotals = (fakeApiData['currentMonth'] as List)
-        .map((e) => (e['total'] as num).toDouble())
-        .toList();
-
-    previousMonthTotals = (fakeApiData['previousMonth'] as List)
-        .map((e) => (e['total'] as num).toDouble())
-        .toList();
-    
-    
+    getLineChartData();
   }
 
   @override
@@ -135,6 +122,37 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   void reLoadPage() {
     getApi();
     getDataChart(forceRefresh: true);
+    getLineChartData(forceRefresh: true);
+  }
+
+  void getLineChartData({bool forceRefresh = false}) {
+    ApiUtil.getInstance()!.get(
+      url: "http://localhost:3003/stats/line",
+      params: {"monthYear": selectedMonth},
+      headers: {"X-Force-Refresh": forceRefresh ? "true" : "false"},
+      onSuccess: (response) {
+        print("📈 Line Chart API response: ${response.data}");
+        if (response.data != null && mounted) {
+          setState(() {
+            // Parse currentMonth data
+            if (response.data['currentMonth'] != null) {
+              currentMonthTotals = (response.data['currentMonth'] as List)
+                  .map((e) => Common.parseDouble(e['total']))
+                  .toList();
+            }
+            // Parse previousMonth data
+            if (response.data['previousMonth'] != null) {
+              previousMonthTotals = (response.data['previousMonth'] as List)
+                  .map((e) => Common.parseDouble(e['total']))
+                  .toList();
+            }
+          });
+        }
+      },
+      onError: (error) {
+        print("❌ Line Chart API error: $error");
+      },
+    );
   }
 
   void _toggleVisible() {
@@ -507,12 +525,14 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   }
 
   void getDataChart({bool forceRefresh = false}) {
+    print("🔄 Calling Summary API with monthYear: $selectedMonth");
+
     ApiUtil.getInstance()!.get(
       url: "http://localhost:3003/transactions/summary",
       params: {
         "monthYear": selectedMonth, // Format: "MM/YYYY"
       },
-      headers: forceRefresh ? {"X-Force-Refresh": "true"} : null,
+      headers: {"X-Force-Refresh": forceRefresh ? "true" : "false"},
       onSuccess: (response) {
         print("✅ Summary API response: ${response.data}");
 
@@ -599,24 +619,35 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
 class SpendingCompareChart extends StatelessWidget {
   SpendingCompareChart({super.key, required this.currentMonthTotals, required this.previousMonthTotals});
-  
+
   final List<double> currentMonthTotals;
   final List<double> previousMonthTotals;
 
   @override
   Widget build(BuildContext context) {
+    // Kiểm tra nếu cả 2 list đều rỗng thì hiển thị placeholder
+    if (currentMonthTotals.isEmpty && previousMonthTotals.isEmpty) {
+      return const SizedBox(
+        height: 250,
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
 
-
-
-    final rawMax = [
+    final allValues = [
       ...currentMonthTotals,
       ...previousMonthTotals,
-    ].reduce((a, b) => a > b ? a : b);
+    ];
+
+    final rawMax = allValues.isEmpty ? 1000000.0 : allValues.reduce((a, b) => a > b ? a : b);
+    if (rawMax == 0) {
+      return const SizedBox(
+        height: 250,
+        child: Center(child: Text("Chưa có dữ liệu chi tiêu")),
+      );
+    }
 
     final maxY = (((rawMax + 999999) ~/ 1000000) * 1000000).toDouble();
-
     final midY = maxY ~/ 2;
-    
 
     return SizedBox(
       height: 250,
@@ -624,24 +655,24 @@ class SpendingCompareChart extends StatelessWidget {
         LineChartData(
           minY: 0,
           maxY: maxY,
-          
+
           lineTouchData: LineTouchData(
             enabled: true,
             touchTooltipData: LineTouchTooltipData(
               getTooltipColor: (LineBarSpot touchedSpot) {
-                return AppColors.background; // màu nền cố định bạn muốn
+                return AppColors.background;
               },
               fitInsideHorizontally: true,
               tooltipPadding: const EdgeInsets.all(8),
               getTooltipItems: (touchedSpots) {
                 return touchedSpots.map((spot) {
                   final value = spot.y.toInt();
-                  final color = spot.bar.color ?? Colors.white; // giữ đúng màu line
+                  final color = spot.bar.color ?? Colors.white;
 
                   return LineTooltipItem(
                     "${Common.formatNumber(value.toString())} đ",
                     TextStyle(
-                      color: color, // ✅ giữ màu của line
+                      color: color,
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
                     ),
@@ -650,7 +681,7 @@ class SpendingCompareChart extends StatelessWidget {
               },
             ),
             handleBuiltInTouches: true,
-            
+
           ),
 
           titlesData: FlTitlesData(
@@ -659,11 +690,9 @@ class SpendingCompareChart extends StatelessWidget {
                 showTitles: true,
                 reservedSize: 18,
                 getTitlesWidget: (value, meta) {
-                  // ✅ giá trị đầu (bên trái)
                   if (value == meta.min) {
                     return const Text("1");
                   }
-                  // ✅ giá trị cuối (bên phải)
                   if (value == meta.max) {
                     return const Text("30");
                   }
@@ -674,7 +703,7 @@ class SpendingCompareChart extends StatelessWidget {
             leftTitles: AxisTitles(
               sideTitles: SideTitles(
                 showTitles: true,
-                interval: maxY / 2, // ép chia làm 0, mid, max
+                interval: maxY / 2,
                 reservedSize: 45,
                 getTitlesWidget: (value, _) {
                   if (value == 0) return const Text("0");
@@ -693,19 +722,19 @@ class SpendingCompareChart extends StatelessWidget {
           ),
           gridData: FlGridData(
             drawVerticalLine: false,
-            drawHorizontalLine: false,  // giữ đường ngang
+            drawHorizontalLine: false,
 
             getDrawingHorizontalLine: (value) {
               if (value == 0) {
                 return FlLine(
                   color: AppColors.blackIcon,
-                  dashArray: [4, 0], // nét liền
+                  dashArray: [4, 0],
                   strokeWidth: 2,
                 );
               }
               return FlLine(
                 strokeWidth: 1,
-                dashArray: [4, 2], // nét đứt nhẹ
+                dashArray: [4, 2],
                 color: Colors.grey.withOpacity(0.3),
               );
             },
@@ -713,23 +742,18 @@ class SpendingCompareChart extends StatelessWidget {
 
           extraLinesData: ExtraLinesData(
             horizontalLines: [
-              // 🔥 Đường đáy (nét liền)
               HorizontalLine(
                 y: 0,
                 color: AppColors.blackIcon,
                 strokeWidth: 2,
-                dashArray: [4, 0], // nét liền
+                dashArray: [4, 0],
               ),
-
-              // 🔸 Đường giữa (nét đứt)
               HorizontalLine(
                 y: midY.toDouble(),
                 color: Colors.grey.withOpacity(0.4),
                 strokeWidth: 1,
                 dashArray: [4, 2],
               ),
-
-              // 🔸 Đường trên (nét đứt)
               HorizontalLine(
                 y: maxY.toDouble(),
                 color: Colors.grey.withOpacity(0.4),
@@ -740,9 +764,8 @@ class SpendingCompareChart extends StatelessWidget {
           ),
 
           borderData: FlBorderData(show: false),
-          
+
           lineBarsData: [
-            // tháng này
             LineChartBarData(
               spots: List.generate(
                 currentMonthTotals.length,
@@ -753,7 +776,6 @@ class SpendingCompareChart extends StatelessWidget {
               barWidth: 3,
               dotData: FlDotData(show: false),
             ),
-            // tháng trước
             LineChartBarData(
               spots: List.generate(
                 previousMonthTotals.length,
@@ -766,13 +788,13 @@ class SpendingCompareChart extends StatelessWidget {
             ),
           ],
         ),
-        
+
       ),
     );
   }
 }
 
-  class ChartData {
+class ChartData {
   final int day;
   final double total;
 

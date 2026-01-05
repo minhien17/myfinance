@@ -23,15 +23,66 @@ class _JoinGroupScreenState extends State<JoinGroupScreen> {
   // Dữ liệu nhóm sau khi tìm thấy
   Group? _foundGroup;
 
+  // Helper hiển thị SnackBar đẹp
+  void _showSnackBar(String message, {bool isError = true, bool isSuccess = false}) {
+    final Color backgroundColor;
+    final IconData icon;
+
+    if (isSuccess) {
+      backgroundColor = Colors.green.shade600;
+      icon = Icons.check_circle_outline;
+    } else if (isError) {
+      backgroundColor = Colors.red.shade600;
+      icon = Icons.error_outline;
+    } else {
+      backgroundColor = Colors.blue.shade600;
+      icon = Icons.info_outline;
+    }
+
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(icon, color: Colors.white),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                message,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: backgroundColor,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        margin: const EdgeInsets.all(16),
+        duration: const Duration(seconds: 3),
+        action: SnackBarAction(
+          label: 'Đóng',
+          textColor: Colors.white,
+          onPressed: () {
+            ScaffoldMessenger.of(context).hideCurrentSnackBar();
+          },
+        ),
+      ),
+    );
+  }
+
   // --- LOGIC GIẢ LẬP API ---
 
   // Bước 1: Kiểm tra mã nhóm
   Future<void> _verifyGroupCode() async {
     final code = _codeController.text.trim();
     if (code.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Vui lòng nhập mã nhóm')),
-      );
+      _showSnackBar('Vui lòng nhập mã nhóm');
       return;
     }
 
@@ -65,7 +116,8 @@ class _JoinGroupScreenState extends State<JoinGroupScreen> {
             code: (item["code"] ?? "").toString(),
             number: joinedCount,
             totalMembers: allMembers.length,
-            members: allMembers
+            members: allMembers,
+            ownerId: (item["ownerId"] ?? item["ownerUserId"] ?? item["createdByUserId"])?.toString(),
           );
 
           setState(() {
@@ -75,16 +127,12 @@ class _JoinGroupScreenState extends State<JoinGroupScreen> {
 
         } catch (e) {
           print("Error parsing join response: $e");
-          ScaffoldMessenger.of(context).showSnackBar(
-             const SnackBar(content: Text('Lỗi xử lý dữ liệu nhóm')),
-          );
+          _showSnackBar('Lỗi xử lý dữ liệu nhóm');
         }
       },
       onError: (error) {
         setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-           SnackBar(content: Text('Lỗi kiểm tra mã: $error')),
-        );
+        _showSnackBar('Lỗi kiểm tra mã: $error');
       },
     );
   }
@@ -94,16 +142,12 @@ class _JoinGroupScreenState extends State<JoinGroupScreen> {
     final memberName = _nameController.text.trim();
 
     if (memberName.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Vui lòng nhập tên của bạn')),
-      );
+      _showSnackBar('Vui lòng nhập tên của bạn');
       return;
     }
 
     if (_foundGroup == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Không tìm thấy thông tin nhóm')),
-      );
+      _showSnackBar('Không tìm thấy thông tin nhóm');
       return;
     }
 
@@ -124,20 +168,15 @@ class _JoinGroupScreenState extends State<JoinGroupScreen> {
           MaterialPageRoute(
             builder: (context) => TransactionGroupPage(
               group: _foundGroup!,
-              joinedMemberName: memberName,
             ),
           ),
         );
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Đã tham gia nhóm ${_foundGroup?.name} thành công!')),
-        );
+        _showSnackBar('Đã tham gia nhóm ${_foundGroup?.name} thành công!', isError: false, isSuccess: true);
       },
       onError: (error) {
         setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-           SnackBar(content: Text('Lỗi tham gia: $error')),
-        );
+        _showSnackBar('Lỗi tham gia: $error');
       },
     );
   }

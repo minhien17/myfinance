@@ -82,6 +82,34 @@ List<ItemIcon> ListIcon = [
       ),
       title: 'income',
       description: "Thu nhập"),
+  ItemIcon(
+      img: const Icon(Icons.volunteer_activism, size: 30, color: Colors.pink),
+      title: 'charity',
+      description: "Từ thiện"),
+  ItemIcon(
+      img: const Icon(Icons.shopping_bag, size: 30, color: Colors.orange),
+      title: 'shopping',
+      description: "Mua sắm"),
+  ItemIcon(
+      img: const Icon(Icons.local_hospital, size: 30, color: Colors.red),
+      title: 'health',
+      description: "Sức khỏe"),
+  ItemIcon(
+      img: const Icon(Icons.water_drop, size: 30, color: Colors.blue),
+      title: 'utilities',
+      description: "Tiện ích"),
+  ItemIcon(
+      img: const Icon(Icons.person, size: 30, color: Colors.purple),
+      title: 'personal',
+      description: "Cá nhân"),
+  ItemIcon(
+      img: const Icon(Icons.trending_up, size: 30, color: Colors.green),
+      title: 'investment',
+      description: "Đầu tư"),
+  ItemIcon(
+      img: const Icon(Icons.flight, size: 30, color: Colors.teal),
+      title: 'travel',
+      description: "Du lịch"),
 ];
 
 // trả về description theo title

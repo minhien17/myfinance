@@ -9,7 +9,7 @@ import 'package:my_finance/models/debt_model.dart';
 import 'package:my_finance/models/list_icon.dart';
 import 'package:my_finance/models/transaction_model.dart';
 import 'package:my_finance/models/payment_history_model.dart';
-import 'package:my_finance/pages/share/child_page/add_transation_group_page.dart';
+import 'package:my_finance/pages/share/child_page/add_group_expense_page.dart';
 import 'package:my_finance/pages/share/child_page/edit_transation_group_page.dart';
 import 'package:my_finance/pages/share/child_page/view_report_page.dart';
 import 'package:my_finance/pages/share/child_page/view_members_page.dart';
@@ -23,13 +23,12 @@ import 'package:my_finance/models/member_model.dart';
 
 class TransactionGroupPage extends StatefulWidget {
   final Group group;
-  final String? joinedMemberName;
-  const TransactionGroupPage({super.key, required this.group, this.joinedMemberName});
+  const TransactionGroupPage({super.key, required this.group});
   @override
   _TransactionGroupPageState createState() => _TransactionGroupPageState();
 }
 
-class _TransactionGroupPageState extends State<TransactionGroupPage> with SingleTickerProviderStateMixin  {
+class _TransactionGroupPageState extends State<TransactionGroupPage> with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   final now = DateTime.now();
   late ScrollController _scrollController;
 
@@ -108,80 +107,13 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
     );
   }
 
-  Future<void> fetchGroupDetailsAndNavigate() async {
-    // Nếu đã có groupMembers thì dùng luôn, không cần fetch lại
-    if (groupMembers.isNotEmpty) {
-      final fullGroup = Group(
-        id: widget.group.id,
-        name: widget.group.name,
-        code: widget.group.code,
-        number: widget.group.number,
-        totalMembers: widget.group.totalMembers,
-        members: groupMembers,
-        memberName: widget.group.memberName,
-      );
-
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) => AddTransactionGroupPage(group: fullGroup)),
-      ).then((_) => reLoadPage());
-      return;
-    }
-
-    // Nếu chưa có thì fetch
-    showLoading(context);
-
-    ApiUtil.getInstance()!.get(
-      url: "http://localhost:3004/join/${widget.group.code}",
-      onSuccess: (response) {
-        Navigator.of(context).pop(); // Đóng loading
-
-        try {
-          final groupData = response.data;
-
-          // Parse members từ response
-          List<Member> members = [];
-          if (groupData["members"] != null) {
-            final List<dynamic> membersData = groupData["members"];
-            for (var m in membersData) {
-              members.add(Member.fromJson(m is Map ? Map<String, dynamic>.from(m) : {}));
-            }
-          }
-
-          // Update groupMembers state
-          setState(() {
-            groupMembers = members;
-          });
-
-          // Tạo Group object mới với đầy đủ members
-          final fullGroup = Group(
-            id: widget.group.id,
-            name: widget.group.name,
-            code: widget.group.code,
-            number: widget.group.number,
-            totalMembers: widget.group.totalMembers,
-            members: members,
-            memberName: widget.group.memberName,
-          );
-
-          print("🔍 DEBUG - Fetched ${members.length} members for group ${widget.group.name}");
-
-          // Mở AddTransactionGroupPage với Group đã có đầy đủ members
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => AddTransactionGroupPage(group: fullGroup)),
-          ).then((_) => reLoadPage());
-        } catch (e) {
-          print("❌ Error parsing group details: $e");
-          toastInfo(msg: "Lỗi khi tải thông tin nhóm");
-        }
-      },
-      onError: (error) {
-        Navigator.of(context).pop(); // Đóng loading
-        print("❌ Error fetching group details: $error");
-        toastInfo(msg: "Lỗi khi tải thông tin nhóm");
-      },
-    );
+  void navigateToAddTransaction() {
+    // Sử dụng groupMembers có sẵn (đã được init từ widget.group.members)
+    // Không cần gọi API vì widget.group đã có đầy đủ thông tin members
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => AddGroupExpensePage(group: widget.group)),
+    ).then((_) => reLoadPage());
   }
 
   void markAsPaid(String shareId) {
@@ -218,49 +150,50 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
     }
   }
 
-  void fetchGroupMembers() {
-    // Fetch full group details để có đầy đủ members cho việc hiển thị tên
-    print("🔍 DEBUG - Fetching group members with code: ${widget.group.code}");
-
-    if (widget.group.code.isEmpty) {
-      print("❌ ERROR - Group code is empty! Cannot fetch members.");
-      return;
+  void initGroupMembers() {
+    // Sử dụng members có sẵn từ widget.group thay vì gọi API
+    // vì widget.group.members đã có đầy đủ thông tin (id, name, userId, joined)
+    if (mounted) {
+      setState(() {
+        groupMembers = widget.group.members ?? [];
+      });
+      print("🔍 DEBUG - Loaded ${groupMembers.length} members from widget.group");
+      if (groupMembers.isNotEmpty) {
+        print("📋 Members: ${groupMembers.map((m) => '${m.id}:${m.name}').join(', ')}");
+      }
     }
+  }
 
+  // Fetch members từ API /my để cập nhật danh sách mới nhất
+  void fetchGroupMembers() {
+    print("🔄 Calling fetchGroupMembers for group: ${widget.group.id}");
     ApiUtil.getInstance()!.get(
-      url: "http://localhost:3004/join/${widget.group.code}",
+      url: "http://localhost:3004/my",
       onSuccess: (response) {
-        print("✅ DEBUG - Received response from /join API");
-        try {
-          final groupData = response.data;
-          print("🔍 DEBUG - Response data: $groupData");
+        print("✅ fetchGroupMembers response from /my");
+        if (!mounted) return;
 
-          // Parse members từ response
-          List<Member> members = [];
-          if (groupData["members"] != null) {
-            final List<dynamic> membersData = groupData["members"];
-            print("🔍 DEBUG - Found ${membersData.length} members in response");
-            for (var m in membersData) {
-              members.add(Member.fromJson(m is Map ? Map<String, dynamic>.from(m) : {}));
-            }
-          } else {
-            print("⚠️ WARNING - groupData['members'] is null!");
-          }
+        // Tìm group hiện tại trong danh sách
+        final List<dynamic> groups = response.data ?? [];
+        final currentGroup = groups.firstWhere(
+          (g) => (g['id'] ?? g['groupId'])?.toString() == widget.group.id,
+          orElse: () => null,
+        );
 
-          // Update groupMembers state
-          if (mounted) {
-            setState(() {
-              groupMembers = members;
-            });
-          }
+        if (currentGroup != null && currentGroup['members'] != null) {
+          final List<dynamic> membersData = currentGroup['members'];
+          final List<Member> fetchedMembers = membersData.map((m) {
+            return Member.fromJson(m is Map ? Map<String, dynamic>.from(m) : {});
+          }).toList();
 
-          print("🔍 DEBUG - Loaded ${members.length} members for debt display");
-        } catch (e) {
-          print("❌ Error parsing group members: $e");
+          setState(() {
+            groupMembers = fetchedMembers;
+          });
+          print("🔄 Fetched ${groupMembers.length} members from API /my");
         }
       },
       onError: (error) {
-        print("❌ Error fetching group members: $error");
+        print("❌ Error fetching members: $error");
       },
     );
   }
@@ -268,9 +201,10 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this); // Add lifecycle observer
     _scrollController = ScrollController();
 
-    print("🔍 DEBUG - initState: group.id=${widget.group.id}, group.code=${widget.group.code}");
+    print("🔍 DEBUG - initState: group.id=${widget.group.id}, group.code=${widget.group.code}, group.members.length=${widget.group.members.length}");
 
     getOwner().then((_) {
       if (mounted) setState(() {});
@@ -279,8 +213,9 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
     // 🔥 Load userId hiện tại
     _loadCurrentUserId();
 
-    // Fetch group members để hiển thị tên trong phần nợ
-    fetchGroupMembers();
+    // Sử dụng members có sẵn thay vì gọi API
+    print("🔍 DEBUG - About to call initGroupMembers with ${widget.group.members.length} members");
+    initGroupMembers();
 
     selectedMonth = '${now.month.toString().padLeft(2, '0')}/${now.year}';
     setState(() {
@@ -292,9 +227,19 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
 
   @override
   void dispose() {
-    // TODO: implement dispose
+    WidgetsBinding.instance.removeObserver(this); // Remove lifecycle observer
     _scrollController.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    // Auto-refresh when app resumes
+    if (state == AppLifecycleState.resumed) {
+      print("🔄 App resumed - Auto refreshing data");
+      reLoadPage();
+    }
   }
 
   void _scrollToEnd() {
@@ -466,6 +411,24 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
     return containers;
   }
 
+  // Helper function để lấy tên member từ memberId
+  String _getMemberName(String? memberId, {String defaultName = 'Nhóm'}) {
+    if (memberId == null || memberId.isEmpty) {
+      return defaultName;
+    }
+
+    try {
+      final member = groupMembers.firstWhere((m) => m.id == memberId);
+      // Hiển thị "(bạn)" nếu đây là user hiện tại
+      return member.userId == currentUserId
+          ? '${member.name} (bạn)'
+          : member.name;
+    } catch (e) {
+      print('⚠️ Member not found for id=$memberId. Available: ${groupMembers.map((m) => m.id).join(', ')}');
+      return defaultName;
+    }
+  }
+
   // 🔥 Hàm hiển thị payment history theo ngày
   List<Widget> buildPaymentHistoryList(List<PaymentItem> payments, BuildContext context) {
     // 1️⃣ Gom nhóm theo ngày (YYYY-MM-DD)
@@ -531,6 +494,11 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
               final Color amountColor = payment.type == "paid" ? Colors.red : Colors.green;
               final String typeText = payment.type == "paid" ? "Đã trả" : "Đã nhận";
 
+              // Debug log
+              if (payment.type == "paid") {
+                print("🔍 Payment: ${payment.expenseTitle}, to=${payment.to}, toMemberId=${payment.toMemberId}");
+              }
+
               return Container(
                 margin: const EdgeInsets.only(bottom: 10),
                 padding: const EdgeInsets.all(10),
@@ -553,20 +521,28 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          // Hiển thị tên danh mục
                           Text(
-                            payment.expenseTitle,
+                            titleOf(payment.category) ?? payment.category,
                             style: const TextStyle(fontWeight: FontWeight.bold),
                           ),
                           const SizedBox(height: 4),
+                          // Hiển thị note/description nếu có và khác category
+                          if (payment.expenseTitle.isNotEmpty &&
+                              payment.expenseTitle != payment.category)
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 4),
+                              child: Text(
+                                payment.expenseTitle,
+                                style: TextStyle(color: Colors.grey[700], fontSize: 13),
+                              ),
+                            ),
                           Text(
-                            "$typeText • ${payment.from}",
+                            payment.type == "paid"
+                                ? "$typeText • ${payment.to ?? _getMemberName(payment.toMemberId)}"
+                                : "$typeText • ${payment.from ?? _getMemberName(payment.fromMemberId)}",
                             style: const TextStyle(color: Colors.grey, fontSize: 14),
                           ),
-                          if (payment.note != null && payment.note!.isNotEmpty)
-                            Text(
-                              payment.note!,
-                              style: const TextStyle(color: Colors.grey, fontSize: 12),
-                            ),
                         ],
                       ),
                     ),
@@ -613,8 +589,7 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
         // Code mở popup/màn hình chỉnh sửa tên ở đây
         print("Đã chọn Chỉnh sửa tên");
       } else if (value == 'add_member') {
-        // Code mở màn hình thêm người ở đây
-        print("Đã chọn Thêm người");
+        _showAddMemberSheet();
       }
     },
     
@@ -734,33 +709,14 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
         ),
           SliverList(
             delegate: SliverChildListDelegate([
+              // Summary Card
+              _buildSummaryCard(),
+
               Container(
-                padding: const EdgeInsets.all(20),
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                 color: Colors.white,
                 child: Column(
                   children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceAround,
-                      children: [
-                        Text(widget.joinedMemberName ?? widget.group.memberName ?? (owner.isNotEmpty ? owner : "Bạn"), style: TextStyle(
-                                fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.title)),
-                        
-                        Text("Nhóm", style: TextStyle(
-                                fontSize: 18, fontWeight: FontWeight.bold,)),
-                        
-                      ],
-                    ),
-                    const SizedBox(height: 15),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceAround,
-                      children: [
-                        Text(Common.formatNumber(_myExpense.toString()),
-                            style: const TextStyle(color: AppColors.blackIcon, fontSize: 18)),
-                        Text(Common.formatNumber(_totalExpense.toString()),
-                            style: const TextStyle(color: AppColors.blackIcon, fontSize: 18)),
-                      ],
-                    ),
-                    const SizedBox(height: 15),
                    Row(
                     children: [
                       // 🔹 Nút Add Transaction
@@ -776,7 +732,7 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
                             ),
                           ),
                           onPressed: () {
-                            fetchGroupDetailsAndNavigate();
+                            navigateToAddTransaction();
                           },
                           child: const Text(
                             "Thêm khoản",
@@ -799,15 +755,21 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
                             ),
                           ),
                           onPressed: () {
+                            final membersToPass = groupMembers.isNotEmpty
+                                ? groupMembers
+                                : widget.group.members;
+                            print("🔍 DEBUG - Navigating to ViewMembersPage with ${membersToPass.length} members");
+                            print("📋 Members to pass: ${membersToPass.map((m) => '${m.id}:${m.name}:joined=${m.joined}').join(', ')}");
+
                             Navigator.push(
                               context,
                               MaterialPageRoute(
                                 builder: (context) => ViewMembersPage(
+                                  groupId: widget.group.id,
                                   groupName: widget.group.name,
-                                  members: groupMembers.isNotEmpty
-                                      ? groupMembers
-                                      : widget.group.members,
+                                  members: membersToPass,
                                   currentUserId: currentUserId,
+                                  ownerId: widget.group.ownerId,
                                 ),
                               ),
                             );
@@ -941,6 +903,11 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
 
         final paymentHistory = PaymentHistoryModel.fromJson(response.data);
 
+        // Debug: Print each payment's to/from fields
+        for (var payment in paymentHistory.payments) {
+          print('🔍 Payment: type=${payment.type}, to="${payment.to}", from="${payment.from}", toMemberId=${payment.toMemberId}, fromMemberId=${payment.fromMemberId}');
+        }
+
         setState(() {
           paymentsList = paymentHistory.payments;
           paymentSummary = paymentHistory.summary;
@@ -987,170 +954,753 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
     );
   }
 
-  Widget _buildDebtList() {
-    // Gom nhóm myDebts và owedToMe theo ngày
-    List<Widget> widgets = [];
-
-    // 1. Nhóm "Bạn đang nợ" theo ngày
-    if (myDebts.isNotEmpty) {
-      widgets.add(const Padding(
-        padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-        child: Text("Bạn đang nợ", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-      ));
-      widgets.addAll(_buildDebtsByDate(myDebts, false));
-    }
-
-    // 2. Nhóm "Bạn được nợ" theo ngày
-    if (owedToMe.isNotEmpty) {
-      widgets.add(const Padding(
-        padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-        child: Text("Bạn được nợ", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-      ));
-      widgets.addAll(_buildDebtsByDate(owedToMe, true));
-    }
-
-    // 3. Empty state
-    if (myDebts.isEmpty && owedToMe.isEmpty) {
-      widgets.add(const Center(
-        child: Padding(
-          padding: EdgeInsets.all(40.0),
-          child: Text("Không có khoản nợ nào."),
-        ),
-      ));
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: widgets,
-    );
-  }
-
-  // Hàm nhóm debts theo ngày
-  List<Widget> _buildDebtsByDate(List<DebtModel> debts, bool isOwedToMe) {
-    // Gom nhóm theo ngày
-    Map<String, List<DebtModel>> grouped = {};
-    for (var debt in debts) {
-      if (debt.createdAt != null) {
-        String dateKey = debt.createdAt!.toIso8601String().split('T')[0];
-        grouped.putIfAbsent(dateKey, () => []);
-        grouped[dateKey]!.add(debt);
-      }
-    }
-
-    // Tạo widget cho từng nhóm
-    return grouped.entries.map((entry) {
-      String dateKey = entry.key;
-      List<DebtModel> dailyDebts = entry.value;
-      DateTime date = DateTime.parse(dateKey);
-
-      // Tính tổng tiền trong ngày
-      double totalAmount = dailyDebts.fold(0, (sum, d) => sum + d.shareAmount);
-
-      return Container(
-        margin: const EdgeInsets.only(bottom: 5),
-        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 15),
-        decoration: BoxDecoration(
-          color: Colors.grey[100],
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header ngày + tổng tiền
-            Row(
-              children: [
-                Text(
-                  "${date.day}/${date.month}/${date.year}",
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const Spacer(),
-                Text(
-                  Common.formatNumber(totalAmount.toString()),
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: isOwedToMe ? Colors.green : Colors.red,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(width: 5),
-              ],
-            ),
-
-            const SizedBox(height: 10),
-
-            // Danh sách debts trong ngày
-            ...dailyDebts.map((debt) => _buildDebtItem(debt, isOwedToMe)),
-          ],
-        ),
-      );
-    }).toList();
-  }
-
-  Widget _buildDebtItem(DebtModel debt, bool isOwedToMe) {
-    String memberName = "";
-    final targetId = isOwedToMe ? debt.debtorMemberId : debt.paidByMemberId;
-
-    try {
-      // Dùng groupMembers state thay vì widget.group.members
-      final member = groupMembers.firstWhere((m) => m.id == targetId);
-      // 🔥 Hiển thị "(bạn)" nếu đây là user hiện tại
-      memberName = member.userId == currentUserId
-          ? '${member.name} (bạn)'
-          : member.name;
-    } catch (e) {
-      // Fallback: hiển thị ID nếu không tìm thấy member
-      memberName = targetId ?? "Unknown";
-      print("⚠️ Không tìm thấy member với ID=$targetId trong ${groupMembers.length} members");
-    }
+  // Summary Card hiển thị ở đầu trang (dưới thanh chọn tháng)
+  Widget _buildSummaryCard() {
+    double totalMyDebt = myDebts.fold(0, (sum, d) => sum + d.shareAmount);
+    double totalOwedToMe = owedToMe.fold(0, (sum, d) => sum + d.shareAmount);
+    double netBalance = totalOwedToMe - totalMyDebt;
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 5),
-      padding: const EdgeInsets.all(15),
+      margin: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(10),
+        gradient: LinearGradient(
+          colors: netBalance >= 0
+              ? [Colors.green.shade400, Colors.green.shade600]
+              : [Colors.red.shade400, Colors.red.shade600],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: (netBalance >= 0 ? Colors.green : Colors.red).withOpacity(0.3),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
-      child: Row(
+      child: Column(
         children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(debt.expenseTitle, style: const TextStyle(fontWeight: FontWeight.w600)),
-                Text(
-                  isOwedToMe ? "Thành viên: $memberName" : "Trả cho: $memberName",
-                  style: const TextStyle(fontSize: 12, color: Colors.grey),
-                ),
-              ],
+          Text(
+            netBalance >= 0 ? 'Bạn được nhận lại' : 'Bạn cần trả',
+            style: const TextStyle(
+              color: Colors.white70,
+              fontSize: 14,
             ),
           ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
+          const SizedBox(height: 4),
+          Text(
+            '${Common.formatNumber(netBalance.abs().toString())}đ',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 28,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              Text(
-                "${Common.formatNumber(debt.shareAmount.toString())} đ",
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: isOwedToMe ? Colors.green : Colors.red,
-                ),
+              _buildSummaryItem(
+                icon: Icons.arrow_upward,
+                label: 'Được nợ',
+                amount: totalOwedToMe,
+                color: Colors.white,
               ),
-              if (isOwedToMe)
-                TextButton(
-                  onPressed: () => markAsPaid(debt.shareId),
-                  child: const Text("Xác nhận đã nhận", style: TextStyle(fontSize: 12)),
-                ),
+              Container(
+                width: 1,
+                height: 40,
+                color: Colors.white30,
+              ),
+              _buildSummaryItem(
+                icon: Icons.arrow_downward,
+                label: 'Đang nợ',
+                amount: totalMyDebt,
+                color: Colors.white,
+              ),
             ],
           ),
         ],
       ),
     );
   }
+
+  Widget _buildDebtList() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Empty state
+        if (myDebts.isEmpty && owedToMe.isEmpty)
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.all(40.0),
+              child: Column(
+                children: [
+                  Icon(Icons.check_circle_outline, size: 64, color: Colors.grey[400]),
+                  const SizedBox(height: 16),
+                  Text(
+                    "Không có khoản nợ nào",
+                    style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    "Mọi khoản chi tiêu đã được thanh toán",
+                    style: TextStyle(fontSize: 14, color: Colors.grey[400]),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+        // 1. Nhóm "Bạn được nợ" (hiển thị trước vì quan trọng hơn)
+        if (owedToMe.isNotEmpty) ...[
+          _buildDebtSection(
+            title: "Người khác nợ bạn",
+            subtitle: "${owedToMe.length} khoản",
+            icon: Icons.arrow_circle_down,
+            color: Colors.green,
+            debts: owedToMe,
+            isOwedToMe: true,
+          ),
+        ],
+
+        // 2. Nhóm "Bạn đang nợ"
+        if (myDebts.isNotEmpty) ...[
+          _buildDebtSection(
+            title: "Bạn đang nợ",
+            subtitle: "${myDebts.length} khoản",
+            icon: Icons.arrow_circle_up,
+            color: Colors.red,
+            debts: myDebts,
+            isOwedToMe: false,
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildSummaryItem({
+    required IconData icon,
+    required String label,
+    required double amount,
+    required Color color,
+  }) {
+    return Column(
+      children: [
+        Row(
+          children: [
+            Icon(icon, color: color, size: 16),
+            const SizedBox(width: 4),
+            Text(label, style: TextStyle(color: color.withOpacity(0.8), fontSize: 12)),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Text(
+          '${Common.formatNumber(amount.toString())}đ',
+          style: TextStyle(color: color, fontSize: 16, fontWeight: FontWeight.w600),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDebtSection({
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required Color color,
+    required List<DebtModel> debts,
+    required bool isOwedToMe,
+  }) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          // Header
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(16),
+                topRight: Radius.circular(16),
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: color.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(icon, color: color, size: 20),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: color,
+                        ),
+                      ),
+                      Text(
+                        subtitle,
+                        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                      ),
+                    ],
+                  ),
+                ),
+                Text(
+                  '${Common.formatNumber(debts.fold(0.0, (sum, d) => sum + d.shareAmount).toString())}đ',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: color,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // List items
+          ...debts.map((debt) => _buildDebtItemNew(debt, isOwedToMe)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDebtItemNew(DebtModel debt, bool isOwedToMe) {
+    String memberName = "";
+    final targetId = isOwedToMe ? debt.debtorMemberId : debt.paidByMemberId;
+
+    try {
+      final member = groupMembers.firstWhere((m) => m.id == targetId);
+      memberName = member.userId == currentUserId
+          ? '${member.name} (bạn)'
+          : member.name;
+    } catch (e) {
+      memberName = targetId ?? "Unknown";
+    }
+
+    // Format ngày
+    String dateStr = "";
+    if (debt.createdAt != null) {
+      final d = debt.createdAt!;
+      dateStr = "${d.day}/${d.month}";
+    }
+
+    return InkWell(
+      onTap: isOwedToMe ? () => _showConfirmPaymentSheet(debt, memberName) : null,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          border: Border(
+            bottom: BorderSide(color: Colors.grey.shade100),
+          ),
+        ),
+        child: Row(
+          children: [
+            // Avatar
+            CircleAvatar(
+              radius: 20,
+              backgroundColor: isOwedToMe
+                  ? Colors.green.shade50
+                  : Colors.red.shade50,
+              child: Text(
+                memberName.isNotEmpty ? memberName[0].toUpperCase() : '?',
+                style: TextStyle(
+                  color: isOwedToMe ? Colors.green : Colors.red,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            // Info
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    memberName,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 15,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    debt.expenseTitle,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                  if (dateStr.isNotEmpty)
+                    Text(
+                      dateStr,
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Colors.grey[400],
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            // Amount + Action
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  '${Common.formatNumber(debt.shareAmount.toString())}đ',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: isOwedToMe ? Colors.green : Colors.red,
+                  ),
+                ),
+                if (isOwedToMe)
+                  Container(
+                    margin: const EdgeInsets.only(top: 4),
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.green.shade50,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Text(
+                      'Nhấn để xác nhận',
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: Colors.green,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Bottom sheet thêm thành viên
+  void _showAddMemberSheet() {
+    final TextEditingController searchController = TextEditingController();
+    List<Map<String, dynamic>> searchResults = [];
+    bool isSearching = false;
+    Timer? debounceTimer;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setSheetState) {
+          void searchUsers(String query) {
+            if (query.trim().isEmpty) {
+              setSheetState(() {
+                searchResults = [];
+                isSearching = false;
+              });
+              return;
+            }
+
+            setSheetState(() => isSearching = true);
+
+            ApiUtil.getInstance()!.get(
+              url: "http://localhost:3002/auth/users/search",
+              params: {"q": query.trim()},
+              onSuccess: (response) {
+                final List<dynamic> data = response.data ?? [];
+                setSheetState(() {
+                  searchResults = data.map((u) => Map<String, dynamic>.from(u)).toList();
+                  isSearching = false;
+                });
+              },
+              onError: (error) {
+                print("Search error: $error");
+                setSheetState(() => isSearching = false);
+              },
+            );
+          }
+
+          void addMemberToGroup(Map<String, dynamic> user) {
+            final userId = user["id"] ?? user["userId"] ?? "";
+            final memberName = user["username"] ?? user["name"] ?? "Unknown";
+
+            print("🔍 addMemberToGroup - user data: $user");
+            print("🔍 addMemberToGroup - userId: $userId, memberName: $memberName");
+
+            showLoading(context);
+            ApiUtil.getInstance()!.post(
+              url: "http://localhost:3004/${widget.group.id}/members",
+              body: {
+                "userId": userId,
+                "memberName": memberName,
+              },
+              onSuccess: (response) {
+                hideLoading();
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Row(
+                      children: [
+                        const Icon(Icons.check_circle_outline, color: Colors.white),
+                        const SizedBox(width: 12),
+                        Text('Đã thêm $memberName vào nhóm'),
+                      ],
+                    ),
+                    backgroundColor: Colors.green.shade600,
+                    behavior: SnackBarBehavior.floating,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    margin: const EdgeInsets.all(16),
+                  ),
+                );
+                // Reload members từ API
+                fetchGroupMembers();
+              },
+              onError: (error) {
+                hideLoading();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Row(
+                      children: [
+                        const Icon(Icons.error_outline, color: Colors.white),
+                        const SizedBox(width: 12),
+                        Expanded(child: Text('Lỗi: $error')),
+                      ],
+                    ),
+                    backgroundColor: Colors.red.shade600,
+                    behavior: SnackBarBehavior.floating,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    margin: const EdgeInsets.all(16),
+                  ),
+                );
+              },
+            );
+          }
+
+          return Container(
+            height: MediaQuery.of(context).size.height * 0.75,
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.only(
+                topLeft: Radius.circular(24),
+                topRight: Radius.circular(24),
+              ),
+            ),
+            child: Column(
+              children: [
+                // Handle bar
+                Container(
+                  margin: const EdgeInsets.only(top: 12),
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[300],
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+
+                // Title
+                const Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Text(
+                    'Thêm thành viên',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
+                ),
+
+                // Search input
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: TextField(
+                    controller: searchController,
+                    decoration: InputDecoration(
+                      hintText: 'Tìm theo tên hoặc email...',
+                      prefixIcon: const Icon(Icons.search),
+                      suffixIcon: searchController.text.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.clear),
+                              onPressed: () {
+                                searchController.clear();
+                                setSheetState(() {
+                                  searchResults = [];
+                                });
+                              },
+                            )
+                          : null,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: Colors.grey.shade300),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: AppColors.green, width: 2),
+                      ),
+                      filled: true,
+                      fillColor: Colors.grey.shade50,
+                    ),
+                    onChanged: (value) {
+                      debounceTimer?.cancel();
+                      debounceTimer = Timer(const Duration(milliseconds: 500), () {
+                        searchUsers(value);
+                      });
+                    },
+                  ),
+                ),
+
+                const SizedBox(height: 16),
+
+                // Results
+                Expanded(
+                  child: isSearching
+                      ? const Center(child: CircularProgressIndicator())
+                      : searchResults.isEmpty
+                          ? Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.person_search, size: 64, color: Colors.grey[300]),
+                                  const SizedBox(height: 16),
+                                  Text(
+                                    searchController.text.isEmpty
+                                        ? 'Nhập tên để tìm kiếm'
+                                        : 'Không tìm thấy người dùng',
+                                    style: TextStyle(color: Colors.grey[600]),
+                                  ),
+                                ],
+                              ),
+                            )
+                          : ListView.builder(
+                              padding: const EdgeInsets.symmetric(horizontal: 16),
+                              itemCount: searchResults.length,
+                              itemBuilder: (context, index) {
+                                final user = searchResults[index];
+                                final userId = user["id"] ?? user["userId"] ?? "";
+                                final username = user["username"] ?? user["name"] ?? "Unknown";
+                                final email = user["email"] ?? "";
+
+                                // Check if already member
+                                final isAlreadyMember = groupMembers.any((m) => m.userId == userId);
+
+                                return Container(
+                                  margin: const EdgeInsets.only(bottom: 8),
+                                  decoration: BoxDecoration(
+                                    color: isAlreadyMember ? Colors.grey.shade100 : Colors.white,
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(color: Colors.grey.shade200),
+                                  ),
+                                  child: ListTile(
+                                    leading: CircleAvatar(
+                                      backgroundColor: isAlreadyMember
+                                          ? Colors.grey.shade300
+                                          : AppColors.green.withOpacity(0.2),
+                                      child: Text(
+                                        username.isNotEmpty ? username[0].toUpperCase() : '?',
+                                        style: TextStyle(
+                                          color: isAlreadyMember ? Colors.grey : AppColors.green,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                    title: Text(
+                                      username,
+                                      style: const TextStyle(fontWeight: FontWeight.w600),
+                                    ),
+                                    subtitle: email.isNotEmpty
+                                        ? Text(email, style: TextStyle(color: Colors.grey[600], fontSize: 12))
+                                        : null,
+                                    trailing: isAlreadyMember
+                                        ? Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                            decoration: BoxDecoration(
+                                              color: Colors.grey.shade200,
+                                              borderRadius: BorderRadius.circular(20),
+                                            ),
+                                            child: const Text(
+                                              'Đã là thành viên',
+                                              style: TextStyle(fontSize: 12, color: Colors.grey),
+                                            ),
+                                          )
+                                        : ElevatedButton(
+                                            onPressed: () => addMemberToGroup(user),
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: AppColors.green,
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius: BorderRadius.circular(20),
+                                              ),
+                                              padding: const EdgeInsets.symmetric(horizontal: 16),
+                                            ),
+                                            child: const Text('Thêm', style: TextStyle(color: Colors.white)),
+                                          ),
+                                  ),
+                                );
+                              },
+                            ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  // Bottom sheet xác nhận thanh toán
+  void _showConfirmPaymentSheet(DebtModel debt, String memberName) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.only(
+            topLeft: Radius.circular(24),
+            topRight: Radius.circular(24),
+          ),
+        ),
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Handle bar
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            // Icon
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.green.shade50,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.check_circle_outline,
+                size: 48,
+                color: Colors.green.shade400,
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            // Title
+            const Text(
+              'Xác nhận đã nhận tiền?',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // Description
+            RichText(
+              textAlign: TextAlign.center,
+              text: TextSpan(
+                style: TextStyle(fontSize: 15, color: Colors.grey[600], height: 1.5),
+                children: [
+                  TextSpan(
+                    text: memberName,
+                    style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black87),
+                  ),
+                  const TextSpan(text: ' đã trả cho bạn '),
+                  TextSpan(
+                    text: '${Common.formatNumber(debt.shareAmount.toString())}đ',
+                    style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green),
+                  ),
+                  const TextSpan(text: '\ncho khoản "'),
+                  TextSpan(
+                    text: debt.expenseTitle,
+                    style: const TextStyle(fontStyle: FontStyle.italic),
+                  ),
+                  const TextSpan(text: '"'),
+                ],
+              ),
+            ),
+            const SizedBox(height: 28),
+
+            // Buttons
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(context),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      side: BorderSide(color: Colors.grey.shade300),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: const Text(
+                      'Hủy',
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: Colors.black87,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  flex: 2,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      markAsPaid(debt.shareId);
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: const Text(
+                      'Xác nhận đã nhận',
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
-Image itemLeading(String type) {
+Widget itemLeading(String type) {
   for (int i = 0; i < ListIcon.length; i++) {
     if (ListIcon[i].title == type) {
       return ListIcon[i].img;

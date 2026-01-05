@@ -488,17 +488,13 @@ class _TransactionPageState extends State<TransactionPage> {
   
   void getListTransaction(String nameOfMonth) {
     // nameOfMonth: "MM/YYYY"
-    final parts = nameOfMonth.split('/');
-    if (parts.length != 2) return;
-    
     _loading = true;
     if (mounted) setState(() {});
 
     ApiUtil.getInstance()!.get(
       url: "http://localhost:3001/",
       params: {
-        "month": int.parse(parts[0]),
-        "year": int.parse(parts[1]),
+        "monthYear": nameOfMonth,
       },
       onSuccess: (response) {
         if (response.data != null && response.data is List) {
@@ -532,7 +528,7 @@ class _TransactionPageState extends State<TransactionPage> {
   }
 }
 
-Image itemLeading(String type) {
+Widget itemLeading(String type) {
   for (int i = 0; i < ListIcon.length; i++) {
     if (ListIcon[i].title == type) {
       return ListIcon[i].img;

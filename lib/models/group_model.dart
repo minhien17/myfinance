@@ -9,15 +9,17 @@ class Group {
 
   final String code; // Mã nhóm
   final String? memberName; // Tên của chính người dùng hiện tại trong nhóm này
+  final String? ownerId; // userId của trưởng nhóm (người tạo nhóm)
 
   Group({
     required this.id,
     required this.name,
     this.code = "", // default
     required this.number,
-    this.totalMembers = 0, 
+    this.totalMembers = 0,
     required this.members,
     this.memberName,
+    this.ownerId,
   });
 
   Map<String, dynamic> toJson() {
@@ -27,16 +29,27 @@ class Group {
       'number': number,
       'members': members,
       'memberName': memberName,
+      'ownerId': ownerId,
     };
   }
 
   factory Group.fromJson(Map<String, dynamic> json) {
+    List<Member> membersList = [];
+    if (json['members'] != null && json['members'] is List) {
+      membersList = (json['members'] as List)
+          .map((m) => Member.fromJson(m is Map ? Map<String, dynamic>.from(m) : {}))
+          .toList();
+    }
+
     return Group(
-      id: json['id'],
-      name: json['name'],
-      number: json['number'],
-      members: (json['members'] as List).map((m) => Member.fromJson(m)).toList(),
+      id: (json['id'] ?? json['_id'] ?? '').toString(),
+      name: json['name'] ?? '',
+      code: json['code']?.toString() ?? '',
+      number: json['number'] ?? json['joinedMemberCount'] ?? 0,
+      totalMembers: json['totalMembers'] ?? json['memberCount'] ?? membersList.length,
+      members: membersList,
       memberName: json['memberName'],
+      ownerId: json['ownerId']?.toString() ?? json['ownerUserId']?.toString() ?? json['createdByUserId']?.toString(),
     );
   }
 
