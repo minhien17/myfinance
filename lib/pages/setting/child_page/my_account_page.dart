@@ -18,8 +18,8 @@ class _MyAccountPageState extends State<MyAccountPage> {
   String email = "hienlinh2624@gmail.com";
 
   Future<void> getUserInfor () async {
-    // username = await SharedPreferenceUtil.getUsername();
-    // email = await SharedPreferenceUtil.getEmail();
+    username = await SharedPreferenceUtil.getUsername();
+    email = await SharedPreferenceUtil.getEmail();
     setState(() {
       
     });
