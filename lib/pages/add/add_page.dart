@@ -34,7 +34,7 @@ class _AddExpensePageState extends State<AddExpensePage> {
       context: context,
       initialDate: date,
       firstDate: DateTime(2024),
-      lastDate: DateTime(2026),
+      lastDate: DateTime(2028),
     );
     if (picked != null && picked != date) {
       setState(() {
@@ -45,7 +45,23 @@ class _AddExpensePageState extends State<AddExpensePage> {
 
   void onChanged(String input) {
     setState(() {
-      amount = double.tryParse(input) ?? 0;
+      // Loại bỏ các ký tự không phải số và dấu phẩy
+      final sanitizedInput = input.replaceAll(RegExp(r'[^0-9]'), '');
+
+      // Chuyển đổi thành số và cập nhật amount
+      amount = double.tryParse(sanitizedInput) ?? 0;
+
+      // Định dạng lại chuỗi với dấu phẩy sau mỗi 3 chữ số
+      final formattedInput = sanitizedInput.replaceAllMapped(
+        RegExp(r'\B(?=(\d{3})+(?!\d))'),
+        (match) => ',',
+      );
+
+      // Cập nhật giá trị hiển thị trong TextField
+      textController.value = TextEditingValue(
+        text: formattedInput,
+        selection: TextSelection.collapsed(offset: formattedInput.length),
+      );
     });
   }
 
@@ -239,7 +255,7 @@ class _AddExpensePageState extends State<AddExpensePage> {
                 width: 300,
                 height: 40,
                 child: ElevatedButton(
-                  onPressed: amount == 0 ? null : () => callApi(context),
+                  onPressed: amount <= 0 ? null : () => callApi(context),
                   
                   style: ElevatedButton.styleFrom(
                     backgroundColor: amount == 0 ? null : Colors.green,
@@ -252,7 +268,7 @@ class _AddExpensePageState extends State<AddExpensePage> {
                   child: Text(
                     'Lưu',
                     style: TextStyle(
-                      color: amount == 0 ? null : Colors.white,
+                      color: amount <= 0 ? null : Colors.white,
                       fontSize: 18
                     ),
                   ),

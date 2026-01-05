@@ -478,7 +478,7 @@ class _TransactionPageState extends State<TransactionPage> {
         List<dynamic> jsonList = response.data;
         if (!mounted) return;
         setState(() {
-          months = jsonList.map((e) => e.toString()).toList();
+          months = jsonList.toList().cast<String>();
         });
       },
       onError: (error) {

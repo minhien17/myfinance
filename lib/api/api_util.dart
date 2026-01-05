@@ -44,7 +44,7 @@ class ApiUtil {
       ).timeout(const Duration(seconds: 10));
       print('--- GET Response ---');
       print('Status code: ${res.statusCode}');
-      // print('Body: ${res.body}');
+      print('Body: ${res.body}');
       var data = jsonDecode(res.body);
       if (res.statusCode >= 400) {
         // var r = ErrorResponse.from(data: data, statusCode: res.statusCode);
