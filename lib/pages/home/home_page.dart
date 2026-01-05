@@ -394,8 +394,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                           Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (_) => ReportPage(month: selectedMonth, 
-                                transactionsMap: _getReportData(), 
+                                builder: (_) => ReportPage(month: selectedMonth,
+                                transactionsMap: summaryData, // Dữ liệu từ API /transactions/summary
                                 ),
                               ),
                             );

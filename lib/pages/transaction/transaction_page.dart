@@ -102,7 +102,7 @@ class _TransactionPageState extends State<TransactionPage> {
     }
 
     final selectedIndex = months.indexOf(selectedMonth);
-    const itemWidth = 100.0; // 👉 CHỈNH THEO ITEM CỦA BẠN
+    const itemWidth = 200.0; // 👉 CHỈNH THEO ITEM CỦA BẠN
     final offset = selectedIndex * itemWidth;
 
     _scrollController.animateTo(
@@ -216,33 +216,38 @@ class _TransactionPageState extends State<TransactionPage> {
                   );
                   reLoadPage();
                 },
-                child: Row(
-                  children: [
-                    itemLeading(expense.category),
-                    const SizedBox(width: 20),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            titleOf(expense.category) ?? "",
-                            style: const TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            expense.note ?? "",
-                            style: const TextStyle(color: Colors.grey),
-                          ),
-                        ],
+                child: SizedBox(
+                  height: 48,
+                  child: Row(
+                    children: [
+                      itemLeading(expense.category),
+                      const SizedBox(width: 20),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              titleOf(expense.category) ?? "",
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                            ),
+                            const SizedBox(height: 4),
+                            expense.note == '' ? SizedBox.shrink() :
+                            Text(
+                              expense.note ?? "",
+                              style: const TextStyle(color: Colors.grey),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                    
-                    Text(
-                      Common.formatNumber(expense.amount.toString()),
-                      style: expense.category != "income" ?
-                      TextStyle(color: Colors.red, fontSize: 16) :   TextStyle(color: Colors.blue, fontSize: 16),
-                    ),
-                  ],
+                      
+                      Text(
+                        Common.formatNumber(expense.amount.toString()),
+                        style: expense.category != "income" ?
+                        TextStyle(color: Colors.red, fontSize: 16) :   TextStyle(color: Colors.blue, fontSize: 16),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             );
@@ -338,7 +343,7 @@ class _TransactionPageState extends State<TransactionPage> {
                             getListTransaction(selectedMonth);
                           },
                           child: Container(
-                            width: width /3,
+                            width: 3 * width /5,
                             margin: const EdgeInsets.symmetric(horizontal: 4),
                             decoration: BoxDecoration(
                               color: isSelected
