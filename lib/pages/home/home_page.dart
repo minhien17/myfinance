@@ -53,8 +53,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     // lấy top 5
     final top5 = sortedEntries.take(3);
 
-    // đổ vào TransactionModel.full
-    return top5.map((e) {
+    // đổ vào TransactionModel.full, bỏ giá trị bằng 0
+    return top5.where((e) => Common.parseDouble(e.value) != 0).map((e) {
       return TransactionModel.full(
         category: e.key,
         amount: Common.parseDouble(e.value), // Convert int/double to double
@@ -131,7 +131,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       params: {"monthYear": selectedMonth},
       headers: {"X-Force-Refresh": forceRefresh ? "true" : "false"},
       onSuccess: (response) {
-        print("📈 Line Chart API response: ${response.data}");
         if (response.data != null && mounted) {
           setState(() {
             // Parse currentMonth data
@@ -358,7 +357,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                       child: Text(
                                         'Tháng này',
                                         overflow: TextOverflow.ellipsis,
-                                        style: TextStyle(fontSize: 12),
+                                        style: TextStyle(fontSize: 14),
                                       ),
                                     ),
                                   ],
@@ -383,9 +382,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                     ),
                                     const Flexible(
                                       child: Text(
-                                        'Trung bình 3 tháng trước',
+                                        'Tháng trước',
                                         overflow: TextOverflow.ellipsis,
-                                        style: TextStyle(fontSize: 12),
+                                        style: TextStyle(fontSize: 14),
                                       ),
                                     ),
                                   ],
@@ -401,6 +400,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 
                   // Top spending
                   Row(
+                    mainAxisSize: MainAxisSize.max,
                     children: [
                       Text(
                         "Chi tiêu hàng đầu",
@@ -413,7 +413,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                               context,
                               MaterialPageRoute(
                                 builder: (_) => ReportPage(month: selectedMonth, 
-                                transactionsMap: _getReportData(), 
+                                transactionsMap: summaryData, 
                                 ),
                               ),
                             );
@@ -441,11 +441,22 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                     ],
                   ),
                   padding: const EdgeInsets.all(16),
-                  child: Column(
-                    children: [
-                      ...buildExpenseList(listTop5,context)
-                    ],
-                  ),
+                  child: listTop5.isEmpty
+                      ? SizedBox(
+                          height: 100,
+                          child: Center(
+                            child: Text(
+                              "Bạn chưa chi tiêu trong tháng này",
+                              style: AppStyles.grayText16_500.copyWith(fontSize: 18),
+                            ),
+                          ),
+                        )
+                      : Column(
+                          mainAxisSize: MainAxisSize.max,
+                          children: [
+                            ...buildExpenseList(listTop5, context)
+                          ],
+                        ),
                 )
                 ],
               ),

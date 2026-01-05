@@ -51,7 +51,13 @@ class _EditExpensePageState extends State<EditExpensePage> {
     note = widget.note;
     date = widget.date;
 
-    amountTextController = TextEditingController(text: amount.toString());
+    // hiển thị dấu phẩy trong số tiền
+    final formattedAmount = amount.toStringAsFixed(0).replaceAllMapped(
+      RegExp(r'\B(?=(\d{3})+(?!\d))'),
+      (match) => ',',
+    );
+
+    amountTextController = TextEditingController(text: formattedAmount);
     noteTextController = TextEditingController(text: note.toString());
     
   }
@@ -61,7 +67,7 @@ class _EditExpensePageState extends State<EditExpensePage> {
       context: context,
       initialDate: date,
       firstDate: DateTime(2024),
-      lastDate: DateTime(2026),
+      lastDate: DateTime(2028),
     );
     if (picked != null && picked != date) {
       setState(() {
@@ -72,7 +78,23 @@ class _EditExpensePageState extends State<EditExpensePage> {
 
   void onChanged(String input) {
     setState(() {
-      amount = double.tryParse(input) ?? 0;
+      // Remove non-numeric characters
+      final sanitizedInput = input.replaceAll(RegExp(r'[^0-9]'), '');
+
+      // Parse the sanitized input to update the amount
+      amount = double.tryParse(sanitizedInput) ?? 0;
+
+      // Format the input with commas
+      final formattedInput = sanitizedInput.replaceAllMapped(
+        RegExp(r'\B(?=(\d{3})+(?!\d))'),
+        (match) => ',',
+      );
+
+      // Update the TextField value
+      amountTextController.value = TextEditingValue(
+        text: formattedInput,
+        selection: TextSelection.collapsed(offset: formattedInput.length),
+      );
     });
   }
 

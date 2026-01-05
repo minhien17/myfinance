@@ -60,58 +60,54 @@ class _ReportPageState extends State<ReportPage> {
   List<Widget> buildExpenseList(List<TransactionModel> lists, BuildContext context) {
   
   // 1️⃣ Map qua danh sách và tạo Widget
-  List<Widget> containers = lists.asMap().entries.map((entry) {
-    final index = entry.key;
-    final expense = entry.value;
-    
-    final Color amountColor = expense.category == "income" ? Colors.blue : Colors.red;
-    return Column(
-      mainAxisSize: MainAxisSize.min, // Đảm bảo Column không chiếm hết chiều cao
-      children: [
-        Container(
-          margin: const EdgeInsets.only(bottom: 5),
-          padding: const EdgeInsets.all(10),
-          
-          child: Row(
-            children: [
-              // 💡 SỬ DỤNG HÀM CỦA BẠN: Biểu tượng
-              itemLeading(expense.category), 
-              const SizedBox(width: 20),
-              
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // 💡 SỬ DỤNG HÀM CỦA BẠN: Tiêu đề
-                    Text(
-                      titleOf(expense.category) ?? expense.category, // Fallback là category
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    
-                  ],
+  List<Widget> containers = lists
+    .where((expense) => expense.amount > 0) // Lọc chỉ hiển thị các mục có amount > 0
+    .map((expense) {
+      final Color amountColor = expense.category == "income" ? Colors.blue : Colors.red;
+      return Column(
+        mainAxisSize: MainAxisSize.min, // Đảm bảo Column không chiếm hết chiều cao
+        children: [
+          Container(
+            margin: const EdgeInsets.only(bottom: 5),
+            padding: const EdgeInsets.all(10),
+            child: Row(
+              children: [
+                // 💡 SỬ DỤNG HÀM CỦA BẠN: Biểu tượng
+                itemLeading(expense.category),
+                const SizedBox(width: 20),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // 💡 SỬ DỤNG HÀM CỦA BẠN: Tiêu đề
+                      Text(
+                        titleOf(expense.category) ?? expense.category, // Fallback là category
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              
-              // Số tiền
-              Text(
-                Common.formatNumber(expense.amount.toString()),
-                // 💡 SỬ DỤNG amountColor ĐÃ TÍNH
-                style: TextStyle(color: amountColor, fontSize: 16),
-              ),
-            ],
+                // Số tiền
+                Text(
+                  Common.formatNumber(expense.amount.toString()),
+                  // 💡 SỬ DỤNG amountColor ĐÃ TÍNH
+                  style: TextStyle(color: amountColor, fontSize: 16),
+                ),
+              ],
+            ),
           ),
-        ),
-        // 💡 ĐƯỜNG KẺ DƯỚI (Divider)
-        // Điều chỉnh màu sắc và độ dày cho tinh tế hơn
-        if (index != lists.length - 1) Divider(
-          height: 0, // Đặt height = 0 để kiểm soát khoảng cách bằng padding
-          thickness: 0.8, // Độ dày mỏng
-          color: Colors.black12, // Màu xám nhạt
-          indent: 50, // Lùi vào bằng vị trí của icon
-        ),
-      ],
-    );
-  }).toList(); // 2️⃣ BƯỚC QUAN TRỌNG: Chuyển Iterable thành List<Widget>
+          // 💡 ĐƯỜNG KẺ DƯỚI (Divider)
+          if (lists.last != expense) // Chỉ hiển thị Divider nếu không phải item cuối
+            Divider(
+              height: 0, // Đặt height = 0 để kiểm soát khoảng cách bằng padding
+              thickness: 0.8, // Độ dày mỏng
+              color: Colors.black12, // Màu xám nhạt
+              indent: 50, // Lùi vào bằng vị trí của icon
+            ),
+        ],
+      );
+    })
+    .toList(); // 2️⃣ BƯỚC QUAN TRỌNG: Chuyển Iterable thành List<Widget>
 
   return containers;
 }
@@ -211,61 +207,73 @@ class _ReportPageState extends State<ReportPage> {
                           TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 10),
-                    Expanded(
-                      child: PieChart(
-                        PieChartData(
-                          centerSpaceRadius: 40,
-                          sections: topExpenses.map((item) {
-                            final percent =
-                                (item.amount / totalTop5 * 100).toStringAsFixed(1);
-                            return PieChartSectionData(
-                              color: item.color,
-                              value: item.amount.toDouble(),
-                              title: "$percent%",
-                              radius: 60,
-                              titleStyle: const TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 12),
-                            );
-                          }).toList(),
+                    if (topExpenses.isEmpty) // Xử lý trường hợp không có dữ liệu
+                      const Expanded(
+                        child: Center(
+                          child: Text(
+                            "Bạn chưa chi tiêu trong tháng này",
+                            style: TextStyle(fontSize: 16, color: Colors.grey),
+                          ),
+                        ),
+                      )
+                    else
+                      Expanded(
+                        child: PieChart(
+                          PieChartData(
+                            centerSpaceRadius: 40,
+                            sections: topExpenses.map((item) {
+                              final percent =
+                                  (item.amount / totalTop5 * 100).toStringAsFixed(1);
+                              return PieChartSectionData(
+                                color: item.color,
+                                value: item.amount.toDouble(),
+                                title: "$percent%",
+                                radius: 60,
+                                titleStyle: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 12),
+                              );
+                            }).toList(),
+                          ),
                         ),
                       ),
-                    ),
                     const SizedBox(height: 10),
                       
                     // 🧾 Ghi chú legend
-                    Wrap(
-                      alignment: WrapAlignment.center,
-                      spacing: 12,
-                      runSpacing: 6,
-                      children: topExpenses
-                          .map((item) => Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Container(
-                                    width: 12,
-                                    height: 12,
-                                    decoration: BoxDecoration(
-                                      color: item.color,
-                                      shape: BoxShape.circle,
+                    if (topExpenses.isNotEmpty)
+                      Wrap(
+                        alignment: WrapAlignment.center,
+                        spacing: 12,
+                        runSpacing: 6,
+                        children: topExpenses
+                            .where((item) => item.amount > 0) // Lọc chỉ hiển thị các mục có amount > 0
+                            .map((item) => Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Container(
+                                      width: 12,
+                                      height: 12,
+                                      decoration: BoxDecoration(
+                                        color: item.color,
+                                        shape: BoxShape.circle,
+                                      ),
                                     ),
-                                  ),
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    titleOf(item.category) ?? "",
-                                    style: const TextStyle(fontSize: 14),
-                                  )
-                                ],
-                              ))
-                          .toList(),
-                    ),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      titleOf(item.category) ?? "",
+                                      style: const TextStyle(fontSize: 14),
+                                    )
+                                  ],
+                                ))
+                            .toList(),
+                      ),
                   ],
                 ),
               ),
               const SizedBox(height: 30),
               
-              Container(
+              listTransaction.isNotEmpty ? Container(
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(12),
@@ -280,10 +288,11 @@ class _ReportPageState extends State<ReportPage> {
                 padding: const EdgeInsets.all(16),
                 child: Column(
                   children: [
-                    ...buildExpenseList(listTransaction,context)
+                    
+                      ...buildExpenseList(listTransaction, context),
                   ],
                 ),
-              )
+              ) : SizedBox(height: 10,)
             ],
           ),
         ),
