@@ -39,13 +39,13 @@ class _SignUpScreenState extends State<SignUpScreen> {
     return;
   }
 
-  // Kiểm tra định dạng email
-  final emailRegex = RegExp(r'^[^@]+@[^@]+\.[^@]+$');
-  if (!emailRegex.hasMatch(email)) {
-    toastInfo(msg: "Định dạng email không hợp lệ");
+  // // Kiểm tra định dạng email
+  // final emailRegex = RegExp(r'^[^@]+@[^@]+\.[^@]+$');
+  // if (!emailRegex.hasMatch(email)) {
+  //   toastInfo(msg: "Định dạng email không hợp lệ");
     
-    return;
-  }
+  //   return;
+  // }
 
 
     showLoading(context);

@@ -154,7 +154,7 @@ class _TransactionPageState extends State<TransactionPage> {
       margin: const EdgeInsets.only(bottom: 5),
       padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 15),
       decoration: BoxDecoration(
-        color: Colors.grey[100],
+        color: AppColors.background,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
@@ -460,7 +460,9 @@ class _TransactionPageState extends State<TransactionPage> {
                     color: AppColors.background,
                     child: _loading ? 
                     Center(child: CircularProgressIndicator(),) :
-                    Column(children: [...buildExpenseList(lists, context)]),
+                    Column(
+                      mainAxisSize: MainAxisSize.max,
+                      children: [...buildExpenseList(lists, context)]),
                   ),
                 ]),
               ),

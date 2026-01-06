@@ -209,8 +209,9 @@ class _SharePageState extends State<SharePage> {
                           SizedBox(height: MediaQuery.of(context).size.height * 0.3),
                           Center(
                             child: Text(
-                              'Create your group now',
+                              'Bạn chưa có nhóm nào.\nNhấn "Thêm nhóm" để tạo hoặc tham gia nhóm.',
                               style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+                              textAlign: TextAlign.center,
                             ),
                           ),
                         ],
