@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:my_finance/api/api_end_point.dart';
 import 'package:my_finance/api/api_util.dart';
 import 'package:my_finance/common/flutter_toast.dart';
 import 'package:my_finance/common/loading_dialog.dart';
@@ -55,7 +56,7 @@ class _CreateGroupPageState extends State<CreateGroupPage> {
     };
 
     ApiUtil.getInstance()!.post(
-      url: "http://localhost:3004/",
+      url: ApiEndpoint.groupCreate,
       body: body,
       onSuccess: (response) {
         print("✅ Create group success: ${response.data}");

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:my_finance/api/api_end_point.dart';
 import 'package:my_finance/api/api_util.dart';
 import 'package:my_finance/common/flutter_toast.dart';
 import 'package:my_finance/common/loading_dialog.dart';
@@ -49,7 +50,7 @@ class _SignInScreenState extends State<SignInScreen> {
       "username": email, // Backend mong đợi "username", giá trị lấy từ input (có thể là username hoặc email)
       "password": password
     },
-    url: "http://localhost:3002/auth/login",// fixx
+    url: ApiEndpoint.authLogin,
     onSuccess: (response) async {
       hideLoading();
       // lấy token và user name

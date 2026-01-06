@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:my_finance/api/api_end_point.dart';
 import 'package:my_finance/api/api_util.dart';
 import 'package:my_finance/common/flutter_toast.dart';
 import 'package:my_finance/common/loading_dialog.dart';
@@ -33,7 +34,7 @@ class _TextAnalysisPageState extends State<TextAnalysisPage> {
     });
 
     ApiUtil.getInstance()!.post(
-      url: "http://localhost:3001/analyze-and-save",
+      url: ApiEndpoint.analyzeAndSave,
       body: {"text": text},
       onSuccess: (response) {
         final result = TextAnalysisResult.fromJson(response.data);
@@ -80,7 +81,7 @@ class _TextAnalysisPageState extends State<TextAnalysisPage> {
     };
 
     ApiUtil.getInstance()!.post(
-      url: "http://localhost:3001/save-analyzed-transactions",
+      url: ApiEndpoint.saveAnalyzedTransactions,
       body: body,
       onSuccess: (response) {
         hideLoading();

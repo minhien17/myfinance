@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:bootstrap_icons/bootstrap_icons.dart';
 import 'package:flutter/material.dart';
+import 'package:my_finance/api/api_end_point.dart';
 import 'package:my_finance/api/api_util.dart';
 import 'package:my_finance/common/loading_dialog.dart';
 import 'package:my_finance/models/icon.dart';
@@ -353,7 +354,7 @@ Future<void> addExpense({
    // 3. Sử dụng Completer để đợi API hoàn thành
   final completer = Completer<void>();
   ApiUtil.getInstance()!.patch(
-    url: "http://localhost:3001/$id",
+    url: ApiEndpoint.transactionById(id),
     body: {
       "amount": amount,
       "category": category,
@@ -405,7 +406,7 @@ Future<void> deleteExpense({
   final completer = Completer<void>();
   // Nếu gọi API
   ApiUtil.getInstance()!.delete(
-    url: "http://localhost:3001/$id",
+    url: ApiEndpoint.transactionById(id),
     onSuccess: (response) {
       
       print("✅ Delete expense success");

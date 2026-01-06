@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:bootstrap_icons/bootstrap_icons.dart';
 import 'package:flutter/material.dart';
+import 'package:my_finance/api/api_end_point.dart';
 import 'package:my_finance/api/api_util.dart';
 import 'package:my_finance/common/flutter_toast.dart';
 import 'package:my_finance/common/loading_dialog.dart';
@@ -19,7 +20,6 @@ import 'package:my_finance/utils.dart';
 
 import 'package:my_finance/models/group_model.dart';
 import 'package:my_finance/models/member_model.dart';
-// ... imports
 
 class TransactionGroupPage extends StatefulWidget {
   final Group group;
@@ -34,7 +34,7 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
 
   String selectedMonth = '';
   
-  List<String> months = ["8/2025", "9/2025", "10/2025", "11/2025"]; // danh sách tháng lấy từ API
+  List<String> months = [];
   List<TransactionModel> lists = [];
   List<PaymentItem> paymentsList = []; // Danh sách payment từ payment-history API
   bool _loading = true;
@@ -50,6 +50,11 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
   String currentUserId = ''; // 🔥 userId của người đang đăng nhập
 
   List<Member> groupMembers = []; // Lưu danh sách members để hiển thị tên trong phần nợ
+
+  // State để lưu thông tin group có thể thay đổi
+  late String groupName;
+  late String groupCode;
+  late String? groupOwnerId;
 
   void reLoadPage(){
     getListMonth();
@@ -68,7 +73,7 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
 
     // GET /groups/{groupId}/expenses/my-debts
     ApiUtil.getInstance()!.get(
-      url: "http://localhost:3001/groups/${widget.group.id}/expenses/my-debts",
+      url: ApiEndpoint.groupExpenseMyDebts(widget.group.id),
       onSuccess: (response) {
         final List<dynamic> data = response.data;
         final allDebts = data.map((e) => DebtModel.fromJson(e)).toList();
@@ -88,7 +93,7 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
 
     // GET /groups/{groupId}/expenses/owed-to-me
     ApiUtil.getInstance()!.get(
-      url: "http://localhost:3001/groups/${widget.group.id}/expenses/owed-to-me",
+      url: ApiEndpoint.groupExpenseOwedToMe(widget.group.id),
       onSuccess: (response) {
         final List<dynamic> data = response.data;
         final allOwed = data.map((e) => DebtModel.fromJson(e)).toList();
@@ -119,7 +124,7 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
   void markAsPaid(String shareId) {
     showLoading(context);
     ApiUtil.getInstance()!.post(
-      url: "http://localhost:3001/groups/${widget.group.id}/expenses/mark-paid",
+      url: ApiEndpoint.groupExpenseMarkPaid(widget.group.id),
       body: {"shareId": shareId},
       onSuccess: (response) {
         hideLoading();
@@ -164,11 +169,11 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
     }
   }
 
-  // Fetch members từ API /my để cập nhật danh sách mới nhất
+  // Fetch members và thông tin group từ API /my để cập nhật danh sách mới nhất
   void fetchGroupMembers() {
     print("🔄 Calling fetchGroupMembers for group: ${widget.group.id}");
     ApiUtil.getInstance()!.get(
-      url: "http://localhost:3004/my",
+      url: ApiEndpoint.groupMy,
       onSuccess: (response) {
         print("✅ fetchGroupMembers response from /my");
         if (!mounted) return;
@@ -180,16 +185,27 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
           orElse: () => null,
         );
 
-        if (currentGroup != null && currentGroup['members'] != null) {
-          final List<dynamic> membersData = currentGroup['members'];
-          final List<Member> fetchedMembers = membersData.map((m) {
-            return Member.fromJson(m is Map ? Map<String, dynamic>.from(m) : {});
-          }).toList();
+        if (currentGroup != null) {
+          // Cập nhật thông tin group
+          final newOwnerId = (currentGroup['ownerId'] ?? currentGroup['ownerUserId'] ?? currentGroup['createdByUserId'])?.toString();
+          final newGroupName = currentGroup['name']?.toString() ?? groupName;
+
+          // Cập nhật members
+          List<Member> fetchedMembers = [];
+          if (currentGroup['members'] != null) {
+            final List<dynamic> membersData = currentGroup['members'];
+            fetchedMembers = membersData.map((m) {
+              return Member.fromJson(m is Map ? Map<String, dynamic>.from(m) : {});
+            }).toList();
+          }
 
           setState(() {
             groupMembers = fetchedMembers;
+            groupName = newGroupName;
+            groupOwnerId = newOwnerId;
           });
-          print("🔄 Fetched ${groupMembers.length} members from API /my");
+
+          print("🔄 Fetched group info: name=$groupName, ownerId=$groupOwnerId, members=${groupMembers.length}");
         }
       },
       onError: (error) {
@@ -203,6 +219,11 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
     super.initState();
     WidgetsBinding.instance.addObserver(this); // Add lifecycle observer
     _scrollController = ScrollController();
+
+    // Khởi tạo state từ widget.group
+    groupName = widget.group.name;
+    groupCode = widget.group.code;
+    groupOwnerId = widget.group.ownerId;
 
     print("🔍 DEBUG - initState: group.id=${widget.group.id}, group.code=${widget.group.code}, group.members.length=${widget.group.members.length}");
 
@@ -573,7 +594,7 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
       appBar: AppBar(
         leading: IconButton(onPressed: (){Navigator.pop(context);}, icon: Icon(Icons.arrow_back)),
         title: Text(
-          widget.group.name,
+          groupName,
           style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
         actions: [
@@ -590,6 +611,12 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
         print("Đã chọn Chỉnh sửa tên");
       } else if (value == 'add_member') {
         _showAddMemberSheet();
+      } else if (value == 'out_group') {
+        _showLeaveGroupDialog();
+      } else if (value == 'transfer_ownership') {
+        _showTransferOwnershipDialog();
+      } else if (value == 'delete_group') {
+        _showDeleteGroupDialog();
       }
     },
     
@@ -600,7 +627,7 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
         value: 'edit_name',
         child: Row(
           children: [
-            Icon(Icons.edit, color: AppColors.blackIcon), // Icon minh họa
+            Icon(Icons.edit, color: AppColors.blackIcon),
             SizedBox(width: 12),
             Text('Đổi tên nhóm'),
           ],
@@ -611,7 +638,7 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
         value: 'add_member',
         child: Row(
           children: [
-            Icon(Icons.person_add, color: AppColors.blackIcon), // Icon minh họa
+            Icon(Icons.person_add, color: AppColors.blackIcon),
             SizedBox(width: 12),
             Text('Thêm thành viên'),
           ],
@@ -622,22 +649,36 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
         value: 'out_group',
         child: Row(
           children: [
-            Icon(Icons.remove, color: AppColors.blackIcon), // Icon minh họa
+            Icon(Icons.remove, color: AppColors.blackIcon),
             SizedBox(width: 12),
             Text('Rời nhóm'),
           ],
         ),
       ),
-      const PopupMenuItem<String>(
-        value: 'delete_group',
-        child: Row(
-          children: [
-            Icon(Icons.delete, color: AppColors.blackIcon), // Icon minh họa
-            SizedBox(width: 12),
-            Text('Xóa nhóm'),
-          ],
+      // Lựa chọn 4: Chuyển quyền trưởng nhóm (chỉ hiện nếu là chủ nhóm)
+      if (groupOwnerId == currentUserId)
+        const PopupMenuItem<String>(
+          value: 'transfer_ownership',
+          child: Row(
+            children: [
+              Icon(Icons.swap_horiz, color: AppColors.blackIcon),
+              SizedBox(width: 12),
+              Text('Chuyển quyền trưởng nhóm'),
+            ],
+          ),
         ),
-      ),
+      // Lựa chọn 5: Xóa nhóm (chỉ hiện nếu là chủ nhóm)
+      if (groupOwnerId == currentUserId)
+        const PopupMenuItem<String>(
+          value: 'delete_group',
+          child: Row(
+            children: [
+              Icon(Icons.delete, color: Colors.red),
+              SizedBox(width: 12),
+              Text('Xóa nhóm', style: TextStyle(color: Colors.red)),
+            ],
+          ),
+        ),
     ],
   ),
 ],
@@ -646,7 +687,13 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
         foregroundColor: Colors.black,
         elevation: 0,
       ),
-      body: CustomScrollView(
+      body: RefreshIndicator(
+        onRefresh: () async {
+          reLoadPage();
+          fetchGroupMembers();
+        },
+        child: CustomScrollView(
+        physics: const AlwaysScrollableScrollPhysics(), // Đảm bảo luôn có thể kéo để refresh
         slivers: [
           // 🔹 Thanh chọn tháng
         SliverAppBar(
@@ -766,10 +813,10 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
                               MaterialPageRoute(
                                 builder: (context) => ViewMembersPage(
                                   groupId: widget.group.id,
-                                  groupName: widget.group.name,
+                                  groupName: groupName,
                                   members: membersToPass,
                                   currentUserId: currentUserId,
-                                  ownerId: widget.group.ownerId,
+                                  ownerId: groupOwnerId,
                                 ),
                               ),
                             );
@@ -808,83 +855,110 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
           ),
         ],
       ),
+      ),
     );
   }
-  
+
   void getSum() {}
   
   void getListMonth() {
-    // 🔥 Gọi API để lấy danh sách tháng có dữ liệu từ group expenses
+    Set<String> monthSet = {};
+    int completedCalls = 0;
+    const int totalCalls = 3; // expenses, my-debts, owed-to-me
+
+    void updateMonths() {
+      completedCalls++;
+      if (completedCalls < totalCalls) return;
+
+      // Luôn thêm tháng hiện tại
+      final now = DateTime.now();
+      final currentMonthStr = "${now.month.toString().padLeft(2, '0')}/${now.year}";
+      monthSet.add(currentMonthStr);
+
+      // Tất cả API đã hoàn thành - cập nhật UI
+      List<String> tempMonths = monthSet.toList();
+      tempMonths.sort((a, b) {
+        var aParts = a.split('/');
+        var bParts = b.split('/');
+        int aYear = int.parse(aParts[1]);
+        int bYear = int.parse(bParts[1]);
+        int aMonth = int.parse(aParts[0]);
+        int bMonth = int.parse(bParts[0]);
+
+        if (aYear != bYear) return aYear.compareTo(bYear);
+        return aMonth.compareTo(bMonth);
+      });
+
+      if (!mounted) return;
+      setState(() {
+        months = tempMonths;
+        // Nếu selectedMonth chưa có trong list, chọn tháng hiện tại
+        if (!months.contains(selectedMonth)) {
+          selectedMonth = currentMonthStr;
+        }
+      });
+    }
+
+    void extractMonthsFromList(List<dynamic> data, String dateField) {
+      for (var item in data) {
+        try {
+          if (item is Map<String, dynamic> && item[dateField] != null) {
+            DateTime date = DateTime.parse(item[dateField].toString());
+            String monthStr = "${date.month.toString().padLeft(2, '0')}/${date.year}";
+            monthSet.add(monthStr);
+          }
+        } catch (e) {
+          print("Error parsing date: $e");
+        }
+      }
+    }
+
+    // 1. Lấy tháng từ expenses
     ApiUtil.getInstance()!.get(
-      url: "http://localhost:3001/groups/${widget.group.id}/expenses",
+      url: ApiEndpoint.groupExpenses(widget.group.id),
       onSuccess: (response) {
         if (response.data != null && response.data is List) {
-          Set<String> monthSet = {};
-
-          // Lấy danh sách tháng từ group expenses
-          for (var expense in response.data) {
-            try {
-              // ✅ Kiểm tra expense là Map trước khi parse
-              if (expense is Map<String, dynamic> && expense['dateTime'] != null) {
-                DateTime date = DateTime.parse(expense['dateTime'].toString());
-                String monthStr = "${date.month.toString().padLeft(2, '0')}/${date.year}";
-                monthSet.add(monthStr);
-              }
-            } catch (e) {
-              print("Error parsing date in getListMonth: $e, expense: $expense");
-            }
-          }
-
-          // Convert Set to List và sort
-          List<String> tempMonths = monthSet.toList();
-          tempMonths.sort((a, b) {
-            var aParts = a.split('/');
-            var bParts = b.split('/');
-            int aYear = int.parse(aParts[1]);
-            int bYear = int.parse(bParts[1]);
-            int aMonth = int.parse(aParts[0]);
-            int bMonth = int.parse(bParts[0]);
-
-            if (aYear != bYear) return aYear.compareTo(bYear);
-            return aMonth.compareTo(bMonth);
-          });
-
-          // ✅ Nếu API trả về rỗng, dùng fallback
-          if (tempMonths.isEmpty) {
-            tempMonths = _generateFallbackMonths();
-          }
-
-          if (!mounted) return;
-          setState(() {
-            months = tempMonths;
-            // Nếu tháng hiện tại chưa có trong list, chọn tháng cuối cùng
-            if (!months.contains(selectedMonth) && months.isNotEmpty) {
-              selectedMonth = months.last;
-            }
-          });
+          extractMonthsFromList(response.data, 'dateTime');
         }
+        updateMonths();
       },
       onError: (error) {
-        print("Error getting months: $error");
-        if (!mounted) return;
-        setState(() {
-          months = _generateFallbackMonths();
-        });
+        print("Error getting expenses months: $error");
+        updateMonths();
+      },
+    );
+
+    // 2. Lấy tháng từ my-debts
+    ApiUtil.getInstance()!.get(
+      url: ApiEndpoint.groupExpenseMyDebts(widget.group.id),
+      onSuccess: (response) {
+        if (response.data != null && response.data is List) {
+          extractMonthsFromList(response.data, 'createdAt');
+        }
+        updateMonths();
+      },
+      onError: (error) {
+        print("Error getting my-debts months: $error");
+        updateMonths();
+      },
+    );
+
+    // 3. Lấy tháng từ owed-to-me
+    ApiUtil.getInstance()!.get(
+      url: ApiEndpoint.groupExpenseOwedToMe(widget.group.id),
+      onSuccess: (response) {
+        if (response.data != null && response.data is List) {
+          extractMonthsFromList(response.data, 'createdAt');
+        }
+        updateMonths();
+      },
+      onError: (error) {
+        print("Error getting owed-to-me months: $error");
+        updateMonths();
       },
     );
   }
 
-  // ⚠️ Helper: Tạo danh sách tháng fallback
-  List<String> _generateFallbackMonths() {
-    List<String> tempMonths = [];
-    DateTime now = DateTime.now();
-    for (int i = -6; i <= 6; i++) {
-      DateTime d = DateTime(now.year, now.month + i);
-      tempMonths.add("${d.month.toString().padLeft(2, '0')}/${d.year}");
-    }
-    return tempMonths;
-  }
-  
   void getListTransaction(String nameOfMonth) {
     setState(() {
       _loading = true;
@@ -892,7 +966,7 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
 
     // 🔥 Gọi API payment-history mới
     ApiUtil.getInstance()!.get(
-      url: "http://localhost:3001/groups/${widget.group.id}/expenses/payment-history",
+      url: ApiEndpoint.groupExpensePaymentHistory(widget.group.id),
       params: {
         "monthYear": nameOfMonth, // Format: "MM/YYYY"
       },
@@ -1324,7 +1398,7 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
             setSheetState(() => isSearching = true);
 
             ApiUtil.getInstance()!.get(
-              url: "http://localhost:3002/auth/users/search",
+              url: ApiEndpoint.authUsersSearch,
               params: {"q": query.trim()},
               onSuccess: (response) {
                 final List<dynamic> data = response.data ?? [];
@@ -1349,7 +1423,7 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
 
             showLoading(context);
             ApiUtil.getInstance()!.post(
-              url: "http://localhost:3004/${widget.group.id}/members",
+              url: ApiEndpoint.groupMembers(widget.group.id),
               body: {
                 "userId": userId,
                 "memberName": memberName,
@@ -1696,6 +1770,631 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
           ],
         ),
       ),
+    );
+  }
+
+  // Dialog xác nhận rời nhóm
+  void _showLeaveGroupDialog() {
+    // Đếm số thành viên đã join
+    final joinedMembers = groupMembers.where((m) => m.joined == true).toList();
+    final isLastMember = joinedMembers.length <= 1;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.only(
+            topLeft: Radius.circular(24),
+            topRight: Radius.circular(24),
+          ),
+        ),
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Handle bar
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            // Icon
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: isLastMember ? Colors.red.shade50 : Colors.orange.shade50,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                isLastMember ? Icons.delete_forever : Icons.exit_to_app,
+                size: 48,
+                color: isLastMember ? Colors.red.shade400 : Colors.orange.shade400,
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            // Title
+            Text(
+              isLastMember ? 'Rời và xóa nhóm?' : 'Rời nhóm?',
+              style: const TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // Description
+            Text(
+              isLastMember
+                  ? 'Bạn là thành viên cuối cùng của nhóm "${groupName}".\n\nKhi bạn rời đi, nhóm sẽ tự động bị xóa cùng tất cả dữ liệu.'
+                  : 'Bạn có chắc muốn rời khỏi nhóm "${groupName}"?\n\nBạn sẽ không thể xem các khoản chi tiêu và nợ của nhóm nữa.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 15,
+                color: Colors.grey[600],
+                height: 1.5,
+              ),
+            ),
+            const SizedBox(height: 28),
+
+            // Buttons
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(context),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      side: BorderSide(color: Colors.grey.shade300),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: const Text(
+                      'Hủy',
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: Colors.black87,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  flex: 2,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      _leaveGroup(isLastMember);
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: isLastMember ? Colors.red : Colors.orange,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: Text(
+                      isLastMember ? 'Rời và xóa nhóm' : 'Rời nhóm',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Gọi API rời nhóm
+  void _leaveGroup(bool willDeleteGroup) {
+    showLoading(context);
+    ApiUtil.getInstance()!.delete(
+      url: ApiEndpoint.groupLeave(widget.group.id),
+      onSuccess: (response) {
+        hideLoading();
+
+        final data = response.data;
+        final bool deleted = data['deleted'] == true;
+        final bool transferred = data['transferred'] == true;
+        final String? newOwnerName = data['newOwnerName'];
+
+        String message;
+        if (deleted) {
+          message = 'Nhóm đã bị xoá (không còn thành viên)';
+        } else if (transferred) {
+          message = 'Đã rời nhóm. Quyền trưởng nhóm chuyển cho $newOwnerName';
+        } else {
+          message = 'Đã rời khỏi nhóm "${groupName}"';
+        }
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.check_circle_outline, color: Colors.white),
+                const SizedBox(width: 12),
+                Expanded(child: Text(message)),
+              ],
+            ),
+            backgroundColor: Colors.green.shade600,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            margin: const EdgeInsets.all(16),
+          ),
+        );
+        // Quay về trang SharePage
+        Navigator.pop(context, true);
+      },
+      onError: (error) {
+        hideLoading();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.error_outline, color: Colors.white),
+                const SizedBox(width: 12),
+                Expanded(child: Text('Lỗi: $error')),
+              ],
+            ),
+            backgroundColor: Colors.red.shade600,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            margin: const EdgeInsets.all(16),
+          ),
+        );
+      },
+    );
+  }
+
+  // Dialog xác nhận xóa nhóm (chỉ chủ nhóm)
+  void _showDeleteGroupDialog() {
+    // Kiểm tra quyền chủ nhóm
+    if (groupOwnerId != currentUserId) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Row(
+            children: [
+              Icon(Icons.warning_amber_rounded, color: Colors.white),
+              SizedBox(width: 12),
+              Text('Chỉ chủ nhóm mới có thể xóa nhóm'),
+            ],
+          ),
+          backgroundColor: Colors.orange.shade600,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          margin: const EdgeInsets.all(16),
+        ),
+      );
+      return;
+    }
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.only(
+            topLeft: Radius.circular(24),
+            topRight: Radius.circular(24),
+          ),
+        ),
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Handle bar
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            // Icon cảnh báo
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.red.shade50,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.delete_forever,
+                size: 48,
+                color: Colors.red.shade400,
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            // Title
+            const Text(
+              'Xóa nhóm?',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // Description
+            Text(
+              'Bạn có chắc muốn xóa nhóm "${groupName}"?\n\nHành động này không thể hoàn tác. Tất cả dữ liệu chi tiêu, nợ và thành viên sẽ bị xóa vĩnh viễn.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 15,
+                color: Colors.grey[600],
+                height: 1.5,
+              ),
+            ),
+            const SizedBox(height: 28),
+
+            // Buttons
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(context),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      side: BorderSide(color: Colors.grey.shade300),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: const Text(
+                      'Hủy',
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: Colors.black87,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  flex: 2,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      _deleteGroup();
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.red,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: const Text(
+                      'Xóa nhóm',
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Dialog chuyển quyền trưởng nhóm
+  void _showTransferOwnershipDialog() {
+    // Lọc danh sách thành viên đã tham gia (trừ current user)
+    final eligibleMembers = groupMembers.where((m) =>
+      m.joined == true && m.userId != currentUserId
+    ).toList();
+
+    if (eligibleMembers.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Row(
+            children: [
+              Icon(Icons.warning_amber_rounded, color: Colors.white),
+              SizedBox(width: 12),
+              Text('Không có thành viên nào khác để chuyển quyền'),
+            ],
+          ),
+          backgroundColor: Colors.orange.shade600,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          margin: const EdgeInsets.all(16),
+        ),
+      );
+      return;
+    }
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        height: MediaQuery.of(context).size.height * 0.6,
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.only(
+            topLeft: Radius.circular(24),
+            topRight: Radius.circular(24),
+          ),
+        ),
+        child: Column(
+          children: [
+            // Handle bar
+            Container(
+              margin: const EdgeInsets.only(top: 12),
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+
+            // Header
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.amber.shade50,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      Icons.swap_horiz,
+                      size: 32,
+                      color: Colors.amber.shade700,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Chuyển quyền trưởng nhóm',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Chọn thành viên để nhận quyền trưởng nhóm',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const Divider(height: 1),
+
+            // Member list
+            Expanded(
+              child: ListView.builder(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                itemCount: eligibleMembers.length,
+                itemBuilder: (context, index) {
+                  final member = eligibleMembers[index];
+                  return ListTile(
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+                    leading: CircleAvatar(
+                      backgroundColor: AppColors.green.withOpacity(0.2),
+                      child: Text(
+                        member.name.isNotEmpty ? member.name[0].toUpperCase() : '?',
+                        style: const TextStyle(
+                          color: AppColors.green,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    title: Text(
+                      member.name,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 16,
+                      ),
+                    ),
+                    subtitle: member.userId != null
+                        ? Text(
+                            'ID: ${member.userId!.substring(0, member.userId!.length > 8 ? 8 : member.userId!.length)}...',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey[500],
+                            ),
+                          )
+                        : null,
+                    trailing: Icon(
+                      Icons.arrow_forward_ios,
+                      size: 16,
+                      color: Colors.grey[400],
+                    ),
+                    onTap: () {
+                      Navigator.pop(context);
+                      _confirmTransferOwnership(member);
+                    },
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Dialog xác nhận chuyển quyền
+  void _confirmTransferOwnership(Member newOwner) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Icon(Icons.swap_horiz, color: Colors.amber.shade700),
+            const SizedBox(width: 12),
+            const Expanded(child: Text('Xác nhận chuyển quyền')),
+          ],
+        ),
+        content: RichText(
+          text: TextSpan(
+            style: TextStyle(fontSize: 15, color: Colors.grey[700], height: 1.5),
+            children: [
+              const TextSpan(text: 'Bạn có chắc muốn chuyển quyền trưởng nhóm cho '),
+              TextSpan(
+                text: newOwner.name,
+                style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black87),
+              ),
+              const TextSpan(text: '?\n\nSau khi chuyển, bạn sẽ trở thành thành viên thường.'),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Hủy'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _transferOwnership(newOwner);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.amber.shade700,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: const Text('Xác nhận', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Gọi API chuyển quyền trưởng nhóm
+  void _transferOwnership(Member newOwner) {
+    showLoading(context);
+    ApiUtil.getInstance()!.post(
+      url: ApiEndpoint.groupTransferOwnership(widget.group.id),
+      body: {
+        "newOwnerUserId": newOwner.userId,
+      },
+      onSuccess: (response) {
+        hideLoading();
+
+        // Cập nhật local state
+        setState(() {
+          groupOwnerId = newOwner.userId;
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.check_circle_outline, color: Colors.white),
+                const SizedBox(width: 12),
+                Expanded(child: Text('Đã chuyển quyền trưởng nhóm cho ${newOwner.name}')),
+              ],
+            ),
+            backgroundColor: Colors.green.shade600,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            margin: const EdgeInsets.all(16),
+          ),
+        );
+
+        // Reload để cập nhật UI
+        fetchGroupMembers();
+      },
+      onError: (error) {
+        hideLoading();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.error_outline, color: Colors.white),
+                const SizedBox(width: 12),
+                Expanded(child: Text('Lỗi: $error')),
+              ],
+            ),
+            backgroundColor: Colors.red.shade600,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            margin: const EdgeInsets.all(16),
+          ),
+        );
+      },
+    );
+  }
+
+  // Gọi API xóa nhóm
+  void _deleteGroup() {
+    showLoading(context);
+    ApiUtil.getInstance()!.delete(
+      url: ApiEndpoint.groupById(widget.group.id),
+      onSuccess: (response) {
+        hideLoading();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Row(
+              children: [
+                Icon(Icons.check_circle_outline, color: Colors.white),
+                SizedBox(width: 12),
+                Text('Đã xóa nhóm thành công'),
+              ],
+            ),
+            backgroundColor: Colors.green.shade600,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            margin: const EdgeInsets.all(16),
+          ),
+        );
+        // Quay về trang trước (share_page)
+        Navigator.pop(context, true); // true = đã xóa, cần refresh
+      },
+      onError: (error) {
+        hideLoading();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.error_outline, color: Colors.white),
+                const SizedBox(width: 12),
+                Expanded(child: Text('Lỗi: $error')),
+              ],
+            ),
+            backgroundColor: Colors.red.shade600,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            margin: const EdgeInsets.all(16),
+          ),
+        );
+      },
     );
   }
 }

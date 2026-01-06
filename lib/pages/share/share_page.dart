@@ -8,6 +8,7 @@ import 'package:my_finance/pages/share/create_group_page.dart';
 import 'package:my_finance/pages/share/join_group_page.dart';
 import 'package:my_finance/res/app_colors.dart';
 import 'package:my_finance/res/app_styles.dart';
+import 'package:my_finance/api/api_end_point.dart';
 import 'package:my_finance/api/api_util.dart';
 import 'package:my_finance/shared_preference.dart';
 
@@ -51,7 +52,7 @@ class _SharePageState extends State<SharePage> {
     });
 
     ApiUtil.getInstance()!.get(
-      url: "http://localhost:3004/my",
+      url: ApiEndpoint.groupMy,
       onSuccess: (response) {
         // response.data [ {id, name, ownerName, memberNames: []}, ... ]
         // Map sang Model Group
@@ -189,31 +190,43 @@ class _SharePageState extends State<SharePage> {
           ),
         ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Expanded(
-              child: _isLoading
-                  ? const Center(child: CircularProgressIndicator())
-                  : _groups.isEmpty
-                  ? Center(
-                      child: Text(
-                        'Create your group now',
-                        style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+      body: RefreshIndicator(
+        onRefresh: () async {
+          await _fetchGroups();
+        },
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                child: _isLoading
+                    ? const Center(child: CircularProgressIndicator())
+                    : _groups.isEmpty
+                    ? ListView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        children: [
+                          SizedBox(height: MediaQuery.of(context).size.height * 0.3),
+                          Center(
+                            child: Text(
+                              'Create your group now',
+                              style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+                            ),
+                          ),
+                        ],
+                      )
+                    : ListView.builder(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        itemCount: _groups.length,
+                        itemBuilder: (context, index) {
+                          return _buildGroupItem(_groups[index]);
+                        },
                       ),
-                    )
-                  : ListView.builder(
-                      itemCount: _groups.length,
-                      itemBuilder: (context, index) {
-                        return _buildGroupItem(_groups[index]);
-                      },
-                    ),
-            ),
-            const SizedBox(height: 20),
-            _buildAddGroupButton(),
-          ],
+              ),
+              const SizedBox(height: 20),
+              _buildAddGroupButton(),
+            ],
+          ),
         ),
       ),
     );

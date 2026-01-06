@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:my_finance/api/api_end_point.dart';
 import 'package:my_finance/api/api_util.dart';
 import 'package:my_finance/models/list_icon.dart';
 import 'package:my_finance/models/transaction_model.dart';
@@ -127,17 +128,19 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
   void getLineChartData({bool forceRefresh = false}) {
     ApiUtil.getInstance()!.get(
-      url: "http://localhost:3003/stats/line",
+      url: ApiEndpoint.statsLine,
       params: {"monthYear": selectedMonth},
       headers: {"X-Force-Refresh": forceRefresh ? "true" : "false"},
       onSuccess: (response) {
         if (response.data != null && mounted) {
+          print("📊 Line Chart API response: ${response.data}");
           setState(() {
             // Parse currentMonth data
             if (response.data['currentMonth'] != null) {
               currentMonthTotals = (response.data['currentMonth'] as List)
                   .map((e) => Common.parseDouble(e['total']))
                   .toList();
+              print("📊 currentMonthTotals: $currentMonthTotals");
             }
             // Parse previousMonth data
             if (response.data['previousMonth'] != null) {
@@ -472,7 +475,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   void getApi() {
     // 1. Lấy số dư thực tế
     ApiUtil.getInstance()!.get(
-      url: "http://localhost:3001/account/balance",
+      url: ApiEndpoint.accountBalance,
       onSuccess: (response) {
         if (response.data != null) {
           _balance = Common.parseDouble(response.data['balance']);
@@ -484,7 +487,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
     // 2. Lấy danh sách giao dịch tháng hiện tại để tính toán
     ApiUtil.getInstance()!.get(
-      url: "http://localhost:3001/months",
+      url: ApiEndpoint.months,
       params: {
         "month": now.month,
         "year": now.year
@@ -539,7 +542,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     print("🔄 Calling Summary API with monthYear: $selectedMonth");
 
     ApiUtil.getInstance()!.get(
-      url: "http://localhost:3003/transactions/summary",
+      url: ApiEndpoint.transactionsSummary,
       params: {
         "monthYear": selectedMonth, // Format: "MM/YYYY"
       },
@@ -783,9 +786,10 @@ class SpendingCompareChart extends StatelessWidget {
                 (i) => FlSpot(i.toDouble(), currentMonthTotals[i].toDouble()),
               ),
               isCurved: true,
+              preventCurveOverShooting: true,
               color: Colors.red,
               barWidth: 3,
-              dotData: FlDotData(show: false),
+              dotData: const FlDotData(show: false),
             ),
             LineChartBarData(
               spots: List.generate(
@@ -793,9 +797,10 @@ class SpendingCompareChart extends StatelessWidget {
                 (i) => FlSpot(i.toDouble(), previousMonthTotals[i].toDouble()),
               ),
               isCurved: true,
+              preventCurveOverShooting: true,
               color: Colors.grey,
               barWidth: 3,
-              dotData: FlDotData(show: false),
+              dotData: const FlDotData(show: false),
             ),
           ],
         ),

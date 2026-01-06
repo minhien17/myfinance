@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:my_finance/api/api_end_point.dart';
 import 'package:my_finance/api/api_util.dart';
 import 'package:my_finance/common/loading_dialog.dart';
 import 'package:my_finance/models/member_model.dart';
@@ -78,16 +79,31 @@ class _ViewMembersPageState extends State<ViewMembersPage> {
     showLoading(context);
 
     ApiUtil.getInstance()!.delete(
-      url: "http://localhost:3004/${widget.groupId}/leave",
+      url: ApiEndpoint.groupLeave(widget.groupId),
       onSuccess: (response) {
         hideLoading();
+
+        final data = response.data;
+        final bool deleted = data['deleted'] == true;
+        final bool transferred = data['transferred'] == true;
+        final String? newOwnerName = data['newOwnerName'];
+
+        String message;
+        if (deleted) {
+          message = 'Nhóm đã bị xoá (không còn thành viên)';
+        } else if (transferred) {
+          message = 'Đã rời nhóm. Quyền trưởng nhóm chuyển cho $newOwnerName';
+        } else {
+          message = 'Đã rời khỏi nhóm "${widget.groupName}"';
+        }
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Row(
               children: [
                 const Icon(Icons.check_circle_outline, color: Colors.white),
                 const SizedBox(width: 12),
-                Text('Đã rời khỏi nhóm "${widget.groupName}"'),
+                Expanded(child: Text(message)),
               ],
             ),
             backgroundColor: Colors.green.shade600,
@@ -97,7 +113,6 @@ class _ViewMembersPageState extends State<ViewMembersPage> {
           ),
         );
         // Pop 2 lần: ViewMembersPage -> TransactionGroupPage -> SharePage
-        // Dùng pop với result để signal refresh
         Navigator.of(context).pop(true); // Pop ViewMembersPage
         Navigator.of(context).pop(true); // Pop TransactionGroupPage
       },

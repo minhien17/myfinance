@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:bootstrap_icons/bootstrap_icons.dart';
 import 'package:flutter/material.dart';
+import 'package:my_finance/api/api_end_point.dart';
 import 'package:my_finance/api/api_util.dart';
 import 'package:my_finance/common/loading_dialog.dart';
 import 'package:my_finance/models/icon.dart';
@@ -302,7 +303,7 @@ Future<void> addExpense({
   final completer = Completer<void>();
   // Nếu gọi API
   ApiUtil.getInstance()!.post(
-    url: "http://localhost:3001/",
+    url: ApiEndpoint.transactions,
     body: {
       "amount": amount,
       "category": category,

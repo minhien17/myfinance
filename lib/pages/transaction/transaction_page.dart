@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:my_finance/api/api_end_point.dart';
 import 'package:my_finance/api/api_util.dart';
 import 'package:my_finance/common/flutter_toast.dart';
 import 'package:my_finance/models/list_icon.dart';
@@ -115,7 +116,7 @@ class _TransactionPageState extends State<TransactionPage> {
 
   void getTotal() {
     ApiUtil.getInstance()!.get(
-      url: "http://localhost:3001/account/balance", 
+      url: ApiEndpoint.accountBalance, 
       onSuccess: (response){
         if (response.data != null) {
           _balance = Common.parseDouble(response.data["balance"]);
@@ -473,12 +474,26 @@ class _TransactionPageState extends State<TransactionPage> {
 
   void getListMonth() {
     ApiUtil.getInstance()!.get(
-      url: "http://localhost:3001/months",
+      url: ApiEndpoint.months,
       onSuccess: (response) {
         List<dynamic> jsonList = response.data;
         if (!mounted) return;
         setState(() {
           months = jsonList.toList().cast<String>();
+
+          // Đảm bảo tháng hiện tại luôn có trong danh sách
+          final currentMonth = '${now.month.toString().padLeft(2, '0')}/${now.year}';
+          if (!months.contains(currentMonth)) {
+            months.add(currentMonth);
+            // Sắp xếp lại theo thứ tự thời gian
+            months.sort((a, b) {
+              final partsA = a.split('/');
+              final partsB = b.split('/');
+              final dateA = DateTime(int.parse(partsA[1]), int.parse(partsA[0]));
+              final dateB = DateTime(int.parse(partsB[1]), int.parse(partsB[0]));
+              return dateA.compareTo(dateB);
+            });
+          }
         });
       },
       onError: (error) {
@@ -497,7 +512,7 @@ class _TransactionPageState extends State<TransactionPage> {
     if (mounted) setState(() {});
 
     ApiUtil.getInstance()!.get(
-      url: "http://localhost:3001/",
+      url: ApiEndpoint.transactions,
       params: {
         "monthYear": nameOfMonth,
       },

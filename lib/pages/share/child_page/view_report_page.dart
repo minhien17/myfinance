@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:my_finance/api/api_end_point.dart';
 import 'package:my_finance/api/api_util.dart';
 import 'package:my_finance/utils.dart';
 
@@ -35,7 +36,7 @@ class _ViewReportPageState extends State<ViewReportPage> {
   void _fetchBalances() {
     setState(() => _loading = true);
     ApiUtil.getInstance()!.get(
-      url: "http://localhost:3001/groups/${widget.groupId}/balances",
+      url: ApiEndpoint.groupBalances(widget.groupId),
       onSuccess: (response) {
         if (response.data != null && response.data['balances'] != null) {
           final List balances = response.data['balances'];

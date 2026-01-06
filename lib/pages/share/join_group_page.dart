@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:my_finance/models/group_model.dart';
 import 'package:my_finance/models/member_model.dart';
+import 'package:my_finance/api/api_end_point.dart';
 import 'package:my_finance/api/api_util.dart';
 import 'package:my_finance/pages/share/child_page/transation_group_page.dart';
 
@@ -89,7 +90,7 @@ class _JoinGroupScreenState extends State<JoinGroupScreen> {
     setState(() => _isLoading = true);
 
     ApiUtil.getInstance()!.get(
-      url: "http://localhost:3004/join/$code",
+      url: ApiEndpoint.groupJoinByCode(code),
       onSuccess: (response) {
         setState(() => _isLoading = false);
 
@@ -154,7 +155,7 @@ class _JoinGroupScreenState extends State<JoinGroupScreen> {
     setState(() => _isLoading = true);
 
     ApiUtil.getInstance()!.post(
-      url: "http://localhost:3004/join",
+      url: ApiEndpoint.groupJoin,
       body: {
         "groupCode": _foundGroup!.code,
         "memberName": memberName

@@ -1,5 +1,6 @@
 import 'package:bootstrap_icons/bootstrap_icons.dart';
 import 'package:flutter/material.dart';
+import 'package:my_finance/api/api_end_point.dart';
 import 'package:my_finance/api/api_util.dart';
 import 'package:my_finance/common/loading_dialog.dart';
 import 'package:my_finance/models/group_model.dart';
@@ -541,7 +542,7 @@ class _SplitExpensePageState extends State<SplitExpensePage>
               'memberId': entry.key.toString(),
               'userId': member.userId,
               'amount': widget.amount * entry.value / 100,
-              'percentage': entry.value,
+              'percent': entry.value,
             });
           }
         }
@@ -588,9 +589,10 @@ class _SplitExpensePageState extends State<SplitExpensePage>
 
     print('📤 Sending expense with splitType: $splitType');
     print('📤 Body: $body');
+    print('📤 Participants: $participants');
 
     ApiUtil.getInstance()!.post(
-      url: 'http://localhost:3001/groups/${widget.group.id}/expenses',
+      url: ApiEndpoint.groupExpenses(widget.group.id),
       body: body,
       onSuccess: (response) {
         hideLoading();

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:my_finance/api/api_end_point.dart';
 import 'package:my_finance/api/api_util.dart';
 import 'package:my_finance/common/flutter_toast.dart';
 import 'package:my_finance/common/loading_dialog.dart';
@@ -54,7 +55,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
       "email":email,
       "password":password
     },
-    url: "http://localhost:3002/auth/register", // fixx
+    url: ApiEndpoint.authRegister,
     onSuccess: (response) {
       hideLoading();
       var res = response.data;
