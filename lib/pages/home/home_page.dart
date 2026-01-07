@@ -196,9 +196,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                       ),
                       const Spacer(),
                       
-                      IconButton(onPressed: (){
-                        showInstantNotification();
-                      }, icon: Icon(Icons.notifications),)
+                      // IconButton(onPressed: (){
+                      //   showInstantNotification();
+                      // }, icon: Icon(Icons.notifications),)
         
                     ],
                   ),

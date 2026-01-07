@@ -83,10 +83,6 @@ List<ItemIcon> ListIcon = [
       title: 'income',
       description: "Thu nhập"),
   ItemIcon(
-      img: const Icon(Icons.volunteer_activism, size: 30, color: Colors.pink),
-      title: 'charity',
-      description: "Từ thiện"),
-  ItemIcon(
       img: const Icon(Icons.shopping_bag, size: 30, color: Colors.orange),
       title: 'shopping',
       description: "Mua sắm"),
@@ -119,7 +115,7 @@ String? titleOf(String type) {
       return ListIcon[i].description;
     }
   }
-  return "";
+  return "Còn lại";
 }
 
 List<ItemIcon> ListIconGroup = [

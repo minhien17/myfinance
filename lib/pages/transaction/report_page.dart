@@ -222,8 +222,9 @@ class _ReportPageState extends State<ReportPage> {
                           PieChartData(
                             centerSpaceRadius: 40,
                             sections: topExpenses.map((item) {
-                              final percent =
-                                  (item.amount / totalTop5 * 100).toStringAsFixed(1);
+                              final percent = totalTop5 > 0
+                                  ? (item.amount / totalTop5 * 100).toStringAsFixed(1)
+                                  : '0';
                               return PieChartSectionData(
                                 color: item.color,
                                 value: item.amount.toDouble(),
@@ -261,7 +262,7 @@ class _ReportPageState extends State<ReportPage> {
                                     ),
                                     const SizedBox(width: 6),
                                     Text(
-                                      titleOf(item.category) ?? "",
+                                      titleOf(item.category) ?? "Còn lại",
                                       style: const TextStyle(fontSize: 14),
                                     )
                                   ],
@@ -327,8 +328,19 @@ List<TopExpenseModel> aggregateAndGetTop5Expenses(Map<String, dynamic> transacti
   // 2️⃣ Sắp xếp giảm dần
   expenseList.sort((a, b) => b.value.compareTo(a.value));
 
-  // 3️⃣ Lấy 5 khoản chi tiêu lớn nhất
-  final top5 = expenseList.take(5).toList();
+  // 3️⃣ Lấy tối đa 5 mục chi tiêu để hiển thị; nếu nhiều hơn thì gộp phần còn lại thành 'other'
+  List<MapEntry<String, double>> topList = [];
+  double othersSum = 0.0;
+  if (expenseList.length <= 5) {
+    topList = expenseList.take(5).toList();
+  } else {
+    // giữ 4 mục lớn nhất, phần còn lại gộp vào 'other'
+    topList = expenseList.take(4).toList();
+    othersSum = expenseList.skip(4).fold(0.0, (s, e) => s + e.value);
+    if (othersSum > 0) {
+      topList.add(MapEntry('remain', othersSum));
+    }
+  }
 
   // 4️⃣ Gán màu cho PieChart
   final List<Color> defaultColors = [
@@ -336,14 +348,14 @@ List<TopExpenseModel> aggregateAndGetTop5Expenses(Map<String, dynamic> transacti
     Colors.blue,
     Colors.green,
     Colors.orange,
-    Colors.purple
+    Colors.grey, // gray cho 'other'
   ];
 
-  return List.generate(top5.length, (index) {
+  return List.generate(topList.length, (index) {
     return TopExpenseModel(
-      category: top5[index].key,
-      amount: top5[index].value,
-      color: defaultColors[index % defaultColors.length], 
+      category: topList[index].key,
+      amount: topList[index].value,
+      color: defaultColors[index % defaultColors.length],
     );
   });
 }
