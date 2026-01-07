@@ -43,6 +43,7 @@ class ApiEndpoint {
   // Kong Gateway URLs (qua Kong)
   static String get _kongAuthService => "$kongGateway/api/auth";
   static String get _kongTransactionService => "$kongGateway/api/transactions";
+  static String get _kongAccountService => "$kongGateway/api/account";
   static String get _kongStatisticsService => "$kongGateway/api/reports";
   static String get _kongGroupService => "$kongGateway/api/groups";
   static String get _kongGroupExpenseService => "$kongGateway/api/group-expenses";
@@ -74,7 +75,9 @@ class ApiEndpoint {
   static String transactionById(String id) => "$transactionService/$id";
 
   // Account
-  static String get accountBalance => "$transactionService/account/balance";
+  static String get accountBalance => useKongGateway
+      ? "$_kongAccountService/balance"
+      : "$_directTransactionService/account/balance";
 
   // Time-based
   static String get months => "$transactionService/months";
@@ -114,47 +117,46 @@ class ApiEndpoint {
 
   // ============================================
   // 💸 GROUP EXPENSE ENDPOINTS
-  // Kong: /api/group-expenses/* -> transaction-service:3001/api/group-expenses/*
-  // (strip_path=false, giữ nguyên path)
+  // Kong: /api/group-expenses/:gId/expenses/* -> transaction-service:3001/groups/:gId/expenses/*
   // ============================================
   static String groupExpenses(String groupId) {
     if (useKongGateway) {
-      return "$_kongGroupExpenseService/groups/$groupId/expenses";
+      return "$_kongGroupExpenseService/$groupId/expenses";
     }
     return "$_directTransactionService/groups/$groupId/expenses";
   }
 
   static String groupExpenseMyDebts(String groupId) {
     if (useKongGateway) {
-      return "$_kongGroupExpenseService/groups/$groupId/expenses/my-debts";
+      return "$_kongGroupExpenseService/$groupId/expenses/my-debts";
     }
     return "$_directTransactionService/groups/$groupId/expenses/my-debts";
   }
 
   static String groupExpenseOwedToMe(String groupId) {
     if (useKongGateway) {
-      return "$_kongGroupExpenseService/groups/$groupId/expenses/owed-to-me";
+      return "$_kongGroupExpenseService/$groupId/expenses/owed-to-me";
     }
     return "$_directTransactionService/groups/$groupId/expenses/owed-to-me";
   }
 
   static String groupExpenseMarkPaid(String groupId) {
     if (useKongGateway) {
-      return "$_kongGroupExpenseService/groups/$groupId/expenses/mark-paid";
+      return "$_kongGroupExpenseService/$groupId/expenses/mark-paid";
     }
     return "$_directTransactionService/groups/$groupId/expenses/mark-paid";
   }
 
   static String groupExpensePaymentHistory(String groupId) {
     if (useKongGateway) {
-      return "$_kongGroupExpenseService/groups/$groupId/expenses/payment-history";
+      return "$_kongGroupExpenseService/$groupId/expenses/payment-history";
     }
     return "$_directTransactionService/groups/$groupId/expenses/payment-history";
   }
 
   static String groupBalances(String groupId) {
     if (useKongGateway) {
-      return "$_kongGroupExpenseService/groups/$groupId/balances";
+      return "$_kongGroupExpenseService/$groupId/balances";
     }
     return "$_directTransactionService/groups/$groupId/balances";
   }

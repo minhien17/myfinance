@@ -83,6 +83,10 @@ List<ItemIcon> ListIcon = [
       title: 'income',
       description: "Thu nhập"),
   ItemIcon(
+      img: const Icon(Icons.volunteer_activism, size: 30, color: Colors.pink),
+      title: 'charity',
+      description: "Từ thiện"),
+  ItemIcon(
       img: const Icon(Icons.shopping_bag, size: 30, color: Colors.orange),
       title: 'shopping',
       description: "Mua sắm"),
@@ -141,14 +145,6 @@ String normalizeCategory(String category) {
 List<ItemIcon> ListIconGroup = [
   ItemIcon(
       img: Image.asset(
-        'assets/icons/home.png',
-        height: 30,
-        width: 30,
-      ),
-      title: 'home',
-      description: "Thuê nhà"),
-  ItemIcon(
-      img: Image.asset(
         'assets/icons/food.png',
         height: 30,
         width: 30,
@@ -157,7 +153,15 @@ List<ItemIcon> ListIconGroup = [
       description: "Ăn uống"),
   ItemIcon(
       img: Image.asset(
-        'assets/icons/donation.png',
+        'assets/icons/home.png',
+        height: 30,
+        width: 30,
+      ),
+      title: 'home',
+      description: "Thuê nhà"),
+  ItemIcon(
+      img: Image.asset(
+        'assets/icons/houseware.png',
         height: 30,
         width: 30,
       ),
@@ -181,32 +185,12 @@ List<ItemIcon> ListIconGroup = [
       description: "Vui chơi"),
   ItemIcon(
       img: Image.asset(
-        'assets/icons/family.png',
-        height: 30,
-        width: 30,
-      ),
-      title: 'family',
-      description: "Gia đình"),
-  ItemIcon(
-      img: Image.asset(
-        'assets/icons/houseware.png',
-        height: 30,
-        width: 30,
-      ),
-      title: 'houseware',
-      description: "Đồ gia dụng"),
-  ItemIcon(
-      img: Image.asset(
         'assets/icons/transportation.png',
         height: 30,
         width: 30,
       ),
       title: 'transportation',
       description: "Di chuyển"),
-  ItemIcon(
-      img: const Icon(Icons.volunteer_activism, size: 30, color: Colors.pink),
-      title: 'charity',
-      description: "Từ thiện"),
   ItemIcon(
       img: const Icon(Icons.shopping_bag, size: 30, color: Colors.orange),
       title: 'shopping',
@@ -220,17 +204,25 @@ List<ItemIcon> ListIconGroup = [
       title: 'utilities',
       description: "Tiện ích"),
   ItemIcon(
-      img: const Icon(Icons.person, size: 30, color: Colors.purple),
-      title: 'personal',
-      description: "Cá nhân"),
-  ItemIcon(
-      img: const Icon(Icons.trending_up, size: 30, color: Colors.green),
-      title: 'investment',
-      description: "Đầu tư"),
-  ItemIcon(
       img: const Icon(Icons.flight, size: 30, color: Colors.teal),
       title: 'travel',
       description: "Du lịch"),
+  ItemIcon(
+      img: Image.asset(
+        'assets/icons/education.png',
+        height: 30,
+        width: 30,
+      ),
+      title: 'education',
+      description: "Giáo dục"),
+  ItemIcon(
+      img: Image.asset(
+        'assets/icons/family.png',
+        height: 30,
+        width: 30,
+      ),
+      title: 'family',
+      description: "Gia đình"),
   ItemIcon(
       img: Image.asset(
         'assets/icons/other.png',

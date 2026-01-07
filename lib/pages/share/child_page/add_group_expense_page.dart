@@ -80,7 +80,7 @@ class _AddGroupExpensePageState extends State<AddGroupExpensePage> {
       context: context,
       initialDate: date.isAfter(now) ? now : date,
       firstDate: DateTime(2024),
-      lastDate: now, // Không cho chọn ngày trong tương lai
+      lastDate: DateTime.now(),  // Không cho chọn ngày tương lai
     );
     if (picked != null && picked != date) {
       setState(() {

@@ -756,7 +756,7 @@ class _SplitExpensePageState extends State<SplitExpensePage>
           participants.add({
             'memberId': memberId.toString(),
             'userId': member.userId,
-            'memberName': member.name,
+            'name': member.name,
             'amount': perPerson,
           });
         }
@@ -777,7 +777,7 @@ class _SplitExpensePageState extends State<SplitExpensePage>
             participants.add({
               'memberId': entry.key.toString(),
               'userId': member.userId,
-              'memberName': member.name,
+              'name': member.name,
               'amount': entry.value,
             });
           }
@@ -799,7 +799,7 @@ class _SplitExpensePageState extends State<SplitExpensePage>
             participants.add({
               'memberId': entry.key.toString(),
               'userId': member.userId,
-              'memberName': member.name,
+              'name': member.name,
               'amount': widget.amount * entry.value / 100,
               'percent': entry.value,
             });
@@ -817,7 +817,7 @@ class _SplitExpensePageState extends State<SplitExpensePage>
       participants.add({
         'memberId': paidByMemberIdStr,
         'userId': widget.paidByMember.userId,
-        'memberName': widget.paidByMember.name,
+        'name': widget.paidByMember.name,
         'amount': 0,
       });
     }
@@ -841,6 +841,7 @@ class _SplitExpensePageState extends State<SplitExpensePage>
       'paidByMemberId': paidByMemberIdStr,
       'paidByUserId': widget.paidByMember.userId,
       'paidByMemberName': widget.paidByMember.name,
+      'date': widget.date.toIso8601String(),
     };
 
     // Gửi đúng tên trường theo splitType
