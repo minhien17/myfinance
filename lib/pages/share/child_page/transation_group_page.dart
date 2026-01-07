@@ -1,4 +1,4 @@
-import 'dart:async';
+import 'dart:async';  // Keep for Timer
 
 import 'package:bootstrap_icons/bootstrap_icons.dart';
 import 'package:flutter/material.dart';
@@ -20,6 +20,7 @@ import 'package:my_finance/utils.dart';
 
 import 'package:my_finance/models/group_model.dart';
 import 'package:my_finance/models/member_model.dart';
+// import 'package:my_finance/api/sse_service.dart';  // SSE disabled temporarily
 
 class TransactionGroupPage extends StatefulWidget {
   final Group group;
@@ -56,10 +57,45 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
   late String groupCode;
   late String? groupOwnerId;
 
+  // 🔄 Polling timer for real-time updates
+  Timer? _pollingTimer;
+  static const Duration _pollingInterval = Duration(seconds: 10);
+
+  // Flag to prevent double navigation when user deletes group themselves
+  bool _isLeavingPage = false;
+
   void reLoadPage(){
     getListMonth();
     getListTransaction(selectedMonth);
     fetchDebts(selectedMonth);
+  }
+
+  // 🔄 Polling: Start periodic refresh
+  void _startPolling() {
+    _pollingTimer?.cancel();
+    _pollingTimer = Timer.periodic(_pollingInterval, (timer) {
+      if (mounted && !_isLeavingPage) {
+        print('🔄 Polling: Refreshing group data...');
+        _pollData();
+      }
+    });
+    print('🔄 Polling: Started with interval ${_pollingInterval.inSeconds}s');
+  }
+
+  // 🔄 Polling: Stop periodic refresh
+  void _stopPolling() {
+    _pollingTimer?.cancel();
+    _pollingTimer = null;
+    print('🔄 Polling: Stopped');
+  }
+
+  // 🔄 Poll data without showing loading indicator
+  void _pollData() {
+    // Refresh transactions and debts
+    getListTransaction(selectedMonth);
+    fetchDebts(selectedMonth);
+    // Refresh members
+    fetchGroupMembers();
   }
 
   Future<void> fetchDebts(String monthYear) async {
@@ -113,15 +149,29 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
   }
 
   void navigateToAddTransaction() {
-    // Sử dụng groupMembers có sẵn (đã được init từ widget.group.members)
-    // Không cần gọi API vì widget.group đã có đầy đủ thông tin members
+    // Tạo Group mới với members được cập nhật từ API (groupMembers)
+    // thay vì dùng widget.group.members (dữ liệu cũ)
+    final updatedGroup = Group(
+      id: widget.group.id,
+      name: groupName,
+      code: groupCode,
+      number: groupMembers.where((m) => m.joined).length,
+      totalMembers: groupMembers.length,
+      members: groupMembers,
+      memberName: widget.group.memberName,
+      ownerId: groupOwnerId,
+    );
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (context) => AddGroupExpensePage(group: widget.group)),
-    ).then((_) => reLoadPage());
+      MaterialPageRoute(builder: (context) => AddGroupExpensePage(group: updatedGroup)),
+    ).then((result) {
+      // Luôn reload page và members khi quay lại
+      reLoadPage();
+      fetchGroupMembers();
+    });
   }
 
-  void markAsPaid(String shareId) {
+  void markAsPaid(String shareId, {String? memberName, double? amount, String? expenseTitle}) {
     showLoading(context);
     ApiUtil.getInstance()!.post(
       url: ApiEndpoint.groupExpenseMarkPaid(widget.group.id),
@@ -129,16 +179,187 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
       onSuccess: (response) {
         hideLoading();
         reLoadPage();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Đã nhận tiền thành công!')),
+        _showPaymentSuccessDialog(
+          memberName: memberName ?? 'Thành viên',
+          amount: amount ?? 0,
+          expenseTitle: expenseTitle ?? '',
         );
       },
       onError: (err) {
         hideLoading();
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Lỗi: $err')),
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.error_outline, color: Colors.white),
+                const SizedBox(width: 12),
+                Expanded(child: Text('Lỗi: $err')),
+              ],
+            ),
+            backgroundColor: Colors.red.shade600,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            margin: const EdgeInsets.all(16),
+          ),
         );
       }
+    );
+  }
+
+  void _showPaymentSuccessDialog({
+    required String memberName,
+    required double amount,
+    required String expenseTitle,
+  }) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext dialogContext) {
+        return Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Container(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Icon thành công
+                Container(
+                  width: 80,
+                  height: 80,
+                  decoration: BoxDecoration(
+                    color: Colors.green.shade50,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.check_circle,
+                    color: Colors.green.shade600,
+                    size: 50,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                // Tiêu đề
+                const Text(
+                  'Xác nhận thành công!',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                // Thông tin chi tiết
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Column(
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.person, size: 18, color: Colors.grey.shade600),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Từ: ',
+                            style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+                          ),
+                          Expanded(
+                            child: Text(
+                              memberName,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.black87,
+                              ),
+                              textAlign: TextAlign.right,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Icon(Icons.attach_money, size: 18, color: Colors.grey.shade600),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Số tiền: ',
+                            style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+                          ),
+                          Expanded(
+                            child: Text(
+                              '${Common.formatNumber(amount.toString())}đ',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.green.shade600,
+                              ),
+                              textAlign: TextAlign.right,
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (expenseTitle.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Icon(Icons.receipt_long, size: 18, color: Colors.grey.shade600),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Khoản: ',
+                              style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+                            ),
+                            Expanded(
+                              child: Text(
+                                expenseTitle,
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.black87,
+                                ),
+                                textAlign: TextAlign.right,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+                // Nút đóng
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      Navigator.of(dialogContext).pop();
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green.shade600,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      elevation: 0,
+                    ),
+                    child: const Text(
+                      'Hoàn tất',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -234,20 +455,28 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
     // 🔥 Load userId hiện tại
     _loadCurrentUserId();
 
-    // Sử dụng members có sẵn thay vì gọi API
+    // Sử dụng members có sẵn ban đầu
     print("🔍 DEBUG - About to call initGroupMembers with ${widget.group.members.length} members");
     initGroupMembers();
+
+    // Gọi API để lấy danh sách members mới nhất (quan trọng khi vừa join group)
+    fetchGroupMembers();
 
     selectedMonth = '${now.month.toString().padLeft(2, '0')}/${now.year}';
     setState(() {
       // Cuộn ListView đến cuối
       _scrollToEnd();
     });
-    reLoadPage(); 
+    reLoadPage();
+
+    // 🔄 Polling: Start periodic refresh
+    _startPolling();
   }
 
   @override
   void dispose() {
+    // 🔄 Polling: Stop periodic refresh
+    _stopPolling();
     WidgetsBinding.instance.removeObserver(this); // Remove lifecycle observer
     _scrollController.dispose();
     super.dispose();
@@ -394,7 +623,7 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            titleOf(expense.category) ??"",
+                            titleOf(expense.category),
                             style: const TextStyle(fontWeight: FontWeight.bold),
                           ),
                           const SizedBox(height: 4),
@@ -433,7 +662,7 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
   }
 
   // Helper function để lấy tên member từ memberId
-  String _getMemberName(String? memberId, {String defaultName = 'Nhóm'}) {
+  String _getMemberName(String? memberId, {String defaultName = 'Thành viên đã rời'}) {
     if (memberId == null || memberId.isEmpty) {
       return defaultName;
     }
@@ -544,7 +773,7 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
                         children: [
                           // Hiển thị tên danh mục
                           Text(
-                            titleOf(payment.category) ?? payment.category,
+                            titleOf(payment.category),
                             style: const TextStyle(fontWeight: FontWeight.bold),
                           ),
                           const SizedBox(height: 4),
@@ -560,8 +789,8 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
                             ),
                           Text(
                             payment.type == "paid"
-                                ? "$typeText • ${payment.to ?? _getMemberName(payment.toMemberId)}"
-                                : "$typeText • ${payment.from ?? _getMemberName(payment.fromMemberId)}",
+                                ? "$typeText • ${(payment.to?.isNotEmpty == true) ? payment.to! : ((payment.toMemberId?.isNotEmpty == true) ? _getMemberName(payment.toMemberId) : 'cho nhóm')}"
+                                : "$typeText • ${(payment.from?.isNotEmpty == true) ? payment.from! : ((payment.fromMemberId?.isNotEmpty == true) ? _getMemberName(payment.fromMemberId) : 'từ nhóm')}",
                             style: const TextStyle(color: Colors.grey, fontSize: 14),
                           ),
                         ],
@@ -604,12 +833,9 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
     style: ElevatedButton.styleFrom(
       disabledBackgroundColor: AppColors.background,
     ),
-    // 2. Xử lý logic khi người dùng chọn 1 trong 2 mục
+    // 2. Xử lý logic khi người dùng chọn menu
     onSelected: (String value) {
-      if (value == 'edit_name') {
-        // Code mở popup/màn hình chỉnh sửa tên ở đây
-        print("Đã chọn Chỉnh sửa tên");
-      } else if (value == 'add_member') {
+      if (value == 'add_member') {
         _showAddMemberSheet();
       } else if (value == 'out_group') {
         _showLeaveGroupDialog();
@@ -622,18 +848,7 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
     
     // 3. Định nghĩa danh sách các lựa chọn trong menu
     itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
-      // Lựa chọn 1: Chỉnh sửa tên
-      const PopupMenuItem<String>(
-        value: 'edit_name',
-        child: Row(
-          children: [
-            Icon(Icons.edit, color: AppColors.blackIcon),
-            SizedBox(width: 12),
-            Text('Đổi tên nhóm'),
-          ],
-        ),
-      ),
-      // Lựa chọn 2: Thêm người
+      // Lựa chọn 1: Thêm người
       const PopupMenuItem<String>(
         value: 'add_member',
         child: Row(
@@ -819,7 +1034,10 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
                                   ownerId: groupOwnerId,
                                 ),
                               ),
-                            );
+                            ).then((_) {
+                              // Refresh lại danh sách members khi quay lại
+                              fetchGroupMembers();
+                            });
                           },
                           child: const Text(
                             "thành viên",
@@ -843,7 +1061,7 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
                 ),
               ),
               Container(
-                padding: const EdgeInsets.only(top: 15),
+                padding: const EdgeInsets.only(top: 15, bottom: 20),
                 color: AppColors.background,
                 child: _loading
                   ? const Center(child: CircularProgressIndicator())
@@ -1260,16 +1478,31 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
   }
 
   Widget _buildDebtItemNew(DebtModel debt, bool isOwedToMe) {
-    String memberName = "";
     final targetId = isOwedToMe ? debt.debtorMemberId : debt.paidByMemberId;
+    // Sử dụng tên từ API nếu có, nếu không thì tìm trong groupMembers
+    String memberName = isOwedToMe
+        ? (debt.debtorName ?? "")
+        : (debt.paidByName ?? "");
 
-    try {
-      final member = groupMembers.firstWhere((m) => m.id == targetId);
-      memberName = member.userId == currentUserId
-          ? '${member.name} (bạn)'
-          : member.name;
-    } catch (e) {
-      memberName = targetId ?? "Unknown";
+    if (memberName.isEmpty) {
+      try {
+        final member = groupMembers.firstWhere((m) => m.id == targetId);
+        memberName = member.userId == currentUserId
+            ? '${member.name} (bạn)'
+            : member.name;
+      } catch (e) {
+        memberName = "Thành viên đã rời";
+      }
+    } else if (targetId != null) {
+      // Kiểm tra nếu là user hiện tại
+      try {
+        final member = groupMembers.firstWhere((m) => m.id == targetId);
+        if (member.userId == currentUserId) {
+          memberName = '$memberName (bạn)';
+        }
+      } catch (e) {
+        // Không tìm thấy member, giữ nguyên tên từ API
+      }
     }
 
     // Format ngày
@@ -1745,7 +1978,12 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
                   child: ElevatedButton(
                     onPressed: () {
                       Navigator.pop(context);
-                      markAsPaid(debt.shareId);
+                      markAsPaid(
+                        debt.shareId,
+                        memberName: memberName,
+                        amount: debt.shareAmount,
+                        expenseTitle: debt.expenseTitle,
+                      );
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.green,
@@ -1903,6 +2141,8 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
 
   // Gọi API rời nhóm
   void _leaveGroup(bool willDeleteGroup) {
+    // Set flag BEFORE API call to prevent SSE from triggering pop
+    _isLeavingPage = true;
     showLoading(context);
     ApiUtil.getInstance()!.delete(
       url: ApiEndpoint.groupLeave(widget.group.id),
@@ -2354,6 +2594,8 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
 
   // Gọi API xóa nhóm
   void _deleteGroup() {
+    // Set flag BEFORE API call to prevent SSE GROUP_DELETED from triggering pop
+    _isLeavingPage = true;
     showLoading(context);
     ApiUtil.getInstance()!.delete(
       url: ApiEndpoint.groupById(widget.group.id),

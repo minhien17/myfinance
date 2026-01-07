@@ -1,5 +1,6 @@
 import 'package:bootstrap_icons/bootstrap_icons.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:my_finance/models/group_model.dart';
 import 'package:my_finance/models/icon.dart';
 import 'package:my_finance/models/list_icon.dart';
@@ -33,7 +34,8 @@ class _AddGroupExpensePageState extends State<AddGroupExpensePage> {
   @override
   void initState() {
     super.initState();
-    members = widget.group.members;
+    // Chỉ lấy những thành viên đã tham gia (joined = true)
+    members = widget.group.members.where((m) => m.joined).toList();
     if (members.isNotEmpty) {
       selectedMemberId = members[0].id;
     }
@@ -73,11 +75,12 @@ class _AddGroupExpensePageState extends State<AddGroupExpensePage> {
   }
 
   void datePicker() async {
+    final now = DateTime.now();
     DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: date,
+      initialDate: date.isAfter(now) ? now : date,
       firstDate: DateTime(2024),
-      lastDate: DateTime(2026),
+      lastDate: now, // Không cho chọn ngày trong tương lai
     );
     if (picked != null && picked != date) {
       setState(() {
@@ -186,6 +189,9 @@ class _AddGroupExpensePageState extends State<AddGroupExpensePage> {
                             ),
                           ),
                           keyboardType: TextInputType.number,
+                          inputFormatters: [
+                            FilteringTextInputFormatter.digitsOnly,
+                          ],
                           style: const TextStyle(
                             fontSize: 18,
                             color: Colors.green,
@@ -226,7 +232,7 @@ class _AddGroupExpensePageState extends State<AddGroupExpensePage> {
                                     child: item.img,
                                   ),
                                   const SizedBox(width: 20),
-                                  Text(titleOf(item.title) ?? ''),
+                                  Text(titleOf(item.title)),
                                 ],
                               ),
                             );

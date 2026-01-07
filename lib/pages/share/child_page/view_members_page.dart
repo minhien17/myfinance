@@ -137,10 +137,97 @@ class _ViewMembersPageState extends State<ViewMembersPage> {
     );
   }
 
+  // 🗑️ Xóa thành viên (chỉ trưởng nhóm)
+  void _showRemoveMemberDialog(Member member) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Icon(Icons.person_remove, color: Colors.red.shade600),
+            const SizedBox(width: 12),
+            const Text('Xóa thành viên'),
+          ],
+        ),
+        content: Text(
+          'Bạn có chắc chắn muốn xóa "${member.name}" khỏi nhóm?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Hủy'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _removeMember(member);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red.shade600,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: const Text('Xóa', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _removeMember(Member member) {
+    showLoading(context);
+
+    // Dùng DELETE method để xóa thành viên
+    ApiUtil.getInstance()!.delete(
+      url: ApiEndpoint.groupRemoveMember(widget.groupId, member.id),
+      onSuccess: (response) {
+        hideLoading();
+
+        // Cập nhật danh sách local
+        setState(() {
+          _members.removeWhere((m) => m.id == member.id);
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.check_circle_outline, color: Colors.white),
+                const SizedBox(width: 12),
+                Expanded(child: Text('Đã xóa "${member.name}" khỏi nhóm')),
+              ],
+            ),
+            backgroundColor: Colors.green.shade600,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            margin: const EdgeInsets.all(16),
+          ),
+        );
+      },
+      onError: (error) {
+        hideLoading();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.error_outline, color: Colors.white),
+                const SizedBox(width: 12),
+                Expanded(child: Text('Lỗi: $error')),
+              ],
+            ),
+            backgroundColor: Colors.red.shade600,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            margin: const EdgeInsets.all(16),
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final joinedCount = _members.where((m) => m.joined).length;
-    // ignore: unused_local_variable
     final isCurrentUserOwner = widget.currentUserId == widget.ownerId;
 
     return Scaffold(
@@ -286,12 +373,9 @@ class _ViewMembersPageState extends State<ViewMembersPage> {
                       ),
                       overflow: TextOverflow.ellipsis,
                     ),
-                    subtitle: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (isOwner)
-                          Container(
-                            margin: const EdgeInsets.only(top: 4, bottom: 4),
+                    subtitle: isOwner
+                        ? Container(
+                            margin: const EdgeInsets.only(top: 4),
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                             decoration: BoxDecoration(
                               color: Colors.amber.shade100,
@@ -312,36 +396,39 @@ class _ViewMembersPageState extends State<ViewMembersPage> {
                                 ),
                               ],
                             ),
+                          )
+                        : null,
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
                           ),
-                        if (member.userId?.isNotEmpty ?? false)
-                          Text(
-                            'ID: ${member.userId!.substring(0, member.userId!.length > 8 ? 8 : member.userId!.length)}...',
-                            style: const TextStyle(
+                          decoration: BoxDecoration(
+                            color: member.joined
+                                ? AppColors.green.withOpacity(0.1)
+                                : Colors.orange.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            member.joined ? 'Đã tham gia' : 'Chờ tham gia',
+                            style: TextStyle(
+                              color: member.joined ? AppColors.green : Colors.orange,
                               fontSize: 12,
-                              color: Colors.grey,
+                              fontWeight: FontWeight.w500,
                             ),
                           ),
-                      ],
-                    ),
-                    trailing: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: member.joined
-                            ? AppColors.green.withOpacity(0.1)
-                            : Colors.orange.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        member.joined ? 'Đã tham gia' : 'Chờ tham gia',
-                        style: TextStyle(
-                          color: member.joined ? AppColors.green : Colors.orange,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
                         ),
-                      ),
+                        // Nút xóa thành viên (chỉ hiện cho trưởng nhóm, không xóa chính mình và trưởng nhóm)
+                        if (isCurrentUserOwner && !isCurrentUser && !isOwner)
+                          IconButton(
+                            icon: Icon(Icons.person_remove, color: Colors.red.shade400, size: 20),
+                            tooltip: 'Xóa thành viên',
+                            onPressed: () => _showRemoveMemberDialog(member),
+                          ),
+                      ],
                     ),
                   ),
                 );

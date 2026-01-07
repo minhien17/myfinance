@@ -325,8 +325,7 @@ class _AddTransactionGroupPageState extends State<AddTransactionGroupPage> {
                                               width: 20,
                                               height: 25,
                                             ),
-                                            Text(titleOf(item.title) ??
-                                                ''),
+                                            Text(titleOf(item.title)),
                                           ],
                                         ));
                                   }).toList(),

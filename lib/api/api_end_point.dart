@@ -80,7 +80,8 @@ class ApiEndpoint {
   static String get months => "$transactionService/months";
 
   // Analysis
-  static String get analyzeAndSave => "$transactionService/analyze-and-save";
+  static String get analyzeText => "$transactionService/analyze-and-save";  // Chỉ phân tích, không lưu
+  static String get analyzeAndSave => analyzeText;  // Alias cho backward compatibility
   static String get saveAnalyzedTransactions => "$transactionService/save-analyzed-transactions";
 
   // ============================================
@@ -109,6 +110,7 @@ class ApiEndpoint {
 
   // Member operations
   static String memberUserId(String memberId) => "$groupService/members/$memberId/user-id";
+  static String groupRemoveMember(String groupId, String memberId) => "$groupService/$groupId/members/$memberId";
 
   // ============================================
   // 💸 GROUP EXPENSE ENDPOINTS
@@ -156,6 +158,18 @@ class ApiEndpoint {
     }
     return "$_directTransactionService/groups/$groupId/balances";
   }
+
+  // ============================================
+  // 📡 SSE (Server-Sent Events) ENDPOINTS
+  // Real-time updates for groups and expenses
+  // ============================================
+  // Group SSE (group-service:3004)
+  static String groupSseEvents(String groupId) => "$_directGroupService/sse/$groupId/events";
+  static String get userGroupsSseEvents => "$_directGroupService/sse/user/events";
+
+  // Expense SSE (transaction-service:3001)
+  static String groupExpenseSseEvents(String groupId) => "$_directTransactionService/groups/$groupId/expenses/sse/events";
+  static String get userExpensesSseEvents => "$_directTransactionService/expenses/sse/user/events";
 
   // ============================================
   // 🔗 LEGACY ENDPOINTS (for backward compatibility)

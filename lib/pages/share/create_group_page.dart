@@ -17,7 +17,7 @@ class CreateGroupPage extends StatefulWidget {
 
 class _CreateGroupPageState extends State<CreateGroupPage> {
   final TextEditingController _groupNameController = TextEditingController();
-  String ownerName = '';
+  final TextEditingController _memberNameController = TextEditingController();
 
   @override
   void initState() {
@@ -29,7 +29,7 @@ class _CreateGroupPageState extends State<CreateGroupPage> {
     final username = await SharedPreferenceUtil.getUsername();
     if (mounted) {
       setState(() {
-        ownerName = username;
+        _memberNameController.text = username;
       });
     }
   }
@@ -37,9 +37,15 @@ class _CreateGroupPageState extends State<CreateGroupPage> {
   // Xử lý khi nhấn nút Create
   void _createGroup() {
     final groupName = _groupNameController.text.trim();
+    final memberName = _memberNameController.text.trim();
 
     if (groupName.isEmpty) {
       toastInfo(msg: "Vui lòng nhập tên nhóm");
+      return;
+    }
+
+    if (memberName.isEmpty) {
+      toastInfo(msg: "Vui lòng nhập tên của bạn");
       return;
     }
 
@@ -50,9 +56,10 @@ class _CreateGroupPageState extends State<CreateGroupPage> {
   void _callApi(BuildContext context, String groupName) {
     showLoading(context);
 
+    final memberName = _memberNameController.text.trim();
     final body = {
       "name": groupName,
-      "ownerName": ownerName,
+      "ownerName": memberName,
     };
 
     ApiUtil.getInstance()!.post(
@@ -91,6 +98,7 @@ class _CreateGroupPageState extends State<CreateGroupPage> {
   @override
   void dispose() {
     _groupNameController.dispose();
+    _memberNameController.dispose();
     super.dispose();
   }
 
@@ -142,19 +150,15 @@ class _CreateGroupPageState extends State<CreateGroupPage> {
               )),
               const SizedBox(height: 15),
 
-              // 2. Tên người tạo (chỉ hiển thị, không cho sửa)
-              _buildInfoRow('Người tạo', Container(
-                height: 43,
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-                decoration: BoxDecoration(
-                  color: Colors.grey[100],
-                  borderRadius: BorderRadius.circular(5),
+              // 2. Tên hiển thị trong nhóm (cho phép sửa)
+              _buildInfoRow('Tên của bạn', TextField(
+                controller: _memberNameController,
+                decoration: const InputDecoration(
+                  hintText: 'Nhập tên hiển thị',
+                  hintStyle: TextStyle(color: Colors.grey, fontWeight: FontWeight.w300),
+                  border: InputBorder.none,
                 ),
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  ownerName,
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                ),
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
               )),
 
               const SizedBox(height: 40),

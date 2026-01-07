@@ -4,6 +4,7 @@ import 'package:my_finance/models/member_model.dart';
 import 'package:my_finance/api/api_end_point.dart';
 import 'package:my_finance/api/api_util.dart';
 import 'package:my_finance/pages/share/child_page/transation_group_page.dart';
+import 'package:my_finance/shared_preference.dart';
 
 // 2. Màn hình tham gia nhóm
 class JoinGroupScreen extends StatefulWidget {
@@ -77,7 +78,17 @@ class _JoinGroupScreenState extends State<JoinGroupScreen> {
     );
   }
 
-  // --- LOGIC GIẢ LẬP API ---
+  // --- LOGIC ---
+
+  // Load username và chuyển sang bước 2
+  Future<void> _loadUsernameAndGoToStep2(Group group) async {
+    final username = await SharedPreferenceUtil.getUsername();
+    setState(() {
+      _foundGroup = group;
+      _nameController.text = username;
+      _currentStep = 1;
+    });
+  }
 
   // Bước 1: Kiểm tra mã nhóm
   Future<void> _verifyGroupCode() async {
@@ -121,10 +132,8 @@ class _JoinGroupScreenState extends State<JoinGroupScreen> {
             ownerId: (item["ownerId"] ?? item["ownerUserId"] ?? item["createdByUserId"])?.toString(),
           );
 
-          setState(() {
-            _foundGroup = group;
-            _currentStep = 1; // Chuyển sang bước nhập tên
-          });
+          // Load username và chuyển sang bước 2
+          _loadUsernameAndGoToStep2(group);
 
         } catch (e) {
           print("Error parsing join response: $e");

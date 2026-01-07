@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:bootstrap_icons/bootstrap_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -10,6 +12,7 @@ import 'package:my_finance/res/app_colors.dart';
 import 'package:my_finance/res/app_styles.dart';
 import 'package:my_finance/api/api_end_point.dart';
 import 'package:my_finance/api/api_util.dart';
+// import 'package:my_finance/api/sse_service.dart';  // SSE disabled temporarily
 import 'package:my_finance/shared_preference.dart';
 
 class SharePage extends StatefulWidget {
@@ -27,6 +30,10 @@ class _SharePageState extends State<SharePage> {
   String username = "";
   String currentUserId = "";
 
+  // 🔄 Polling timer for real-time updates
+  Timer? _pollingTimer;
+  static const Duration _pollingInterval = Duration(seconds: 10);
+
   @override
   void initState() {
     super.initState();
@@ -38,6 +45,116 @@ class _SharePageState extends State<SharePage> {
       ),
     );
     _loadUsernameAndFetchGroups();
+    _startPolling();
+  }
+
+  @override
+  void dispose() {
+    _stopPolling();
+    super.dispose();
+  }
+
+  // 🔄 Polling: Start periodic refresh
+  void _startPolling() {
+    _pollingTimer?.cancel();
+    _pollingTimer = Timer.periodic(_pollingInterval, (timer) {
+      if (mounted) {
+        print('🔄 Polling: Refreshing groups list...');
+        _fetchGroupsSilent();
+      }
+    });
+    print('🔄 Polling: Started with interval ${_pollingInterval.inSeconds}s');
+  }
+
+  // 🔄 Polling: Stop periodic refresh
+  void _stopPolling() {
+    _pollingTimer?.cancel();
+    _pollingTimer = null;
+    print('🔄 Polling: Stopped');
+  }
+
+  // 🔄 Fetch groups without showing loading indicator (for polling)
+  Future<void> _fetchGroupsSilent() async {
+    ApiUtil.getInstance()!.get(
+      url: ApiEndpoint.groupMy,
+      onSuccess: (response) {
+        if (!mounted) return;
+        try {
+          final List<dynamic> data = response.data;
+          final List<Group> fetchedGroups = _parseGroups(data);
+
+          // Only update if data changed
+          if (_hasGroupsChanged(fetchedGroups)) {
+            print('🔄 Polling: Groups updated');
+            setState(() {
+              _groups = fetchedGroups;
+            });
+          }
+        } catch (e) {
+          print("🔄 Polling error: $e");
+        }
+      },
+      onError: (error) {
+        print("🔄 Polling error: $error");
+      },
+    );
+  }
+
+  // Check if groups list has changed
+  bool _hasGroupsChanged(List<Group> newGroups) {
+    if (_groups.length != newGroups.length) return true;
+    for (int i = 0; i < _groups.length; i++) {
+      if (_groups[i].id != newGroups[i].id ||
+          _groups[i].name != newGroups[i].name ||
+          _groups[i].number != newGroups[i].number ||
+          _groups[i].totalMembers != newGroups[i].totalMembers) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // Parse groups from API response
+  List<Group> _parseGroups(List<dynamic> data) {
+    return data.map((item) {
+      List<Member> groupMembers = [];
+      String? currentMemberName;
+      int joinedCount = 0;
+      int totalCount = 0;
+
+      if (item["members"] != null) {
+        final List<dynamic> membersData = item["members"];
+        totalCount = membersData.length;
+
+        for (var m in membersData) {
+          final member = Member.fromJson(
+            m is Map ? Map<String, dynamic>.from(m) : {},
+          );
+          groupMembers.add(member);
+
+          if (member.joined) {
+            joinedCount++;
+            if (member.userId != null && member.userId == currentUserId) {
+              currentMemberName = member.name;
+            }
+          }
+        }
+      } else {
+        joinedCount = item["joinedMemberCount"] ?? 0;
+        totalCount = item["memberCount"] ?? 0;
+      }
+
+      return Group(
+        id: (item["id"] ?? item["groupId"] ?? "").toString(),
+        name: (item["name"] ?? "No Name").toString(),
+        code: (item["code"] ?? "").toString(),
+        number: joinedCount,
+        totalMembers: totalCount,
+        members: groupMembers,
+        memberName: currentMemberName,
+        ownerId: (item["ownerId"] ?? item["ownerUserId"] ?? item["createdByUserId"])?.toString(),
+      );
+    }).toList();
   }
 
   Future<void> _loadUsernameAndFetchGroups() async {
