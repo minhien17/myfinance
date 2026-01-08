@@ -383,7 +383,7 @@ class _TransactionPageState extends State<TransactionPage> {
                       children: [
                         Row(
                           children: [
-                            const Text("Thu nhập", style: TextStyle(
+                            const Text("Thu nhập của tháng", style: TextStyle(
                                     fontSize: 16)),
                             const Spacer(),
                             Text(Common.formatNumber(_totalIncome.toString()),
@@ -393,7 +393,7 @@ class _TransactionPageState extends State<TransactionPage> {
                         const SizedBox(height: 5),
                         Row(
                           children: [
-                            const Text("Đã chi",
+                            const Text("Chi tiêu của tháng",
                                 style: TextStyle( fontSize: 16)),
                             const Spacer(),
                             Text(Common.formatNumber(_totalExpense.toString()),

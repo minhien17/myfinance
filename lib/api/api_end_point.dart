@@ -7,7 +7,7 @@ class ApiEndpoint {
 
   // 🔹 Chọn 1 trong 3 HOST bên dưới:
   static const String HOST_LOCAL = "localhost";           // Dùng khi chạy trên máy local
-  static const String HOST_WIFI = "10.241.110.56";        // Dùng khi chạy trên thiết bị thật qua WiFi
+  static const String HOST_WIFI = "10.43.157.56";        // Dùng khi chạy trên thiết bị thật qua WiFi
 
   // 🔹 Chuyển đổi HOST tại đây:
   static String HOST = HOST_LOCAL;  // ← Đổi thành HOST_WIFI khi cần test trên thiết bị thật
@@ -75,6 +75,7 @@ class ApiEndpoint {
 
   // Account
   static String get accountBalance => "$transactionService/account/balance";
+  static String get allexpense => "$transactionService/allexpense";
 
   // Time-based
   static String get months => "$transactionService/months";
