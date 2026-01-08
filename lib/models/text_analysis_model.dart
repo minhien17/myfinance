@@ -36,6 +36,7 @@ class AnalyzedTransaction {
   String editedCategory;
   double editedAmount;
   String editedNote;
+  DateTime editedDate;
 
   AnalyzedTransaction({
     required this.sentence,
@@ -51,9 +52,11 @@ class AnalyzedTransaction {
     String? editedCategory,
     double? editedAmount,
     String? editedNote,
+    DateTime? editedDate,
   })  : editedCategory = editedCategory ?? category,
         editedAmount = editedAmount ?? amount,
-        editedNote = editedNote ?? (sentence.isNotEmpty ? sentence : matchedText);
+        editedNote = editedNote ?? (sentence.isNotEmpty ? sentence : matchedText),
+        editedDate = editedDate ?? DateTime.now();
 
   factory AnalyzedTransaction.fromJson(Map<String, dynamic> json) {
     return AnalyzedTransaction(
@@ -77,7 +80,7 @@ class AnalyzedTransaction {
       'amount': editedAmount,
       'category': editedCategory,
       'note': editedNote,
-      'dateTime': DateTime.now().toIso8601String(),
+      'dateTime': editedDate.toUtc().toIso8601String(),
     };
   }
 }

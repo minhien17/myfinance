@@ -844,6 +844,11 @@ class _SplitExpensePageState extends State<SplitExpensePage>
       'date': widget.date.toUtc().toIso8601String(),
     };
 
+    // Thêm exactSplits nếu splitType là exact
+    if (splitType == 'exact') {
+      body['exactSplits'] = participants;
+    }
+
     print('📤 Sending expense with splitType: $splitType');
     print('📤 Body: $body');
 

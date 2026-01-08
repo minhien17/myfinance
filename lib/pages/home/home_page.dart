@@ -185,7 +185,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                     children: [
                       Text(
                         _isVisible
-                            ? "${Common.formatNumber(_balance.toString())} đ"
+                            ? "${Common.formatNumber((_allIncome - _allExpense).toString())} đ"
                             : "*********",
                         style: AppStyles.title,
                       ),

@@ -326,6 +326,20 @@ class _TextAnalysisPageState extends State<TextAnalysisPage> {
     );
   }
 
+  String _formatDate(DateTime d) {
+    if (DateTime.now().day == d.day &&
+        DateTime.now().month == d.month &&
+        DateTime.now().year == d.year) {
+      return "Hôm nay";
+    }
+    if (DateTime.now().subtract(const Duration(days: 1)).day == d.day &&
+        DateTime.now().subtract(const Duration(days: 1)).month == d.month &&
+        DateTime.now().subtract(const Duration(days: 1)).year == d.year) {
+      return "Hôm qua";
+    }
+    return "${d.day}/${d.month}/${d.year}";
+  }
+
   void _showEditDialog(AnalyzedTransaction transaction) {
     final TextEditingController amountController =
         TextEditingController(text: transaction.editedAmount.toString());
@@ -339,6 +353,8 @@ class _TextAnalysisPageState extends State<TextAnalysisPage> {
       selectedCategory = 'other';
       transaction.editedCategory = 'other';
     }
+
+    DateTime selectedDate = transaction.editedDate;
 
     showDialog(
       context: context,
@@ -396,6 +412,36 @@ class _TextAnalysisPageState extends State<TextAnalysisPage> {
                         });
                       },
                     ),
+                    const SizedBox(height: 12),
+                    // Ô chọn ngày
+                    InkWell(
+                      onTap: () async {
+                        final picked = await showDatePicker(
+                          context: context,
+                          initialDate: selectedDate,
+                          firstDate: DateTime(2024),
+                          lastDate: DateTime(2028),
+                        );
+                        if (picked != null) {
+                          setDialogState(() {
+                            selectedDate = picked;
+                          });
+                        }
+                      },
+                      child: InputDecorator(
+                        decoration: const InputDecoration(
+                          labelText: 'Ngày',
+                          border: OutlineInputBorder(),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(_formatDate(selectedDate)),
+                            const Icon(Icons.calendar_today, size: 20),
+                          ],
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -412,6 +458,7 @@ class _TextAnalysisPageState extends State<TextAnalysisPage> {
                               transaction.editedAmount;
                       transaction.editedNote = noteController.text;
                       transaction.editedCategory = selectedCategory;
+                      transaction.editedDate = selectedDate;
                     });
                     Navigator.pop(context);
                   },

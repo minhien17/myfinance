@@ -115,14 +115,17 @@ class _TransactionPageState extends State<TransactionPage> {
 
 
   void getTotal() {
+    // Lấy tổng thu nhập và chi tiêu để tính số dư = allIncome - allExpense
     ApiUtil.getInstance()!.get(
-      url: ApiEndpoint.accountBalance, 
+      url: ApiEndpoint.allexpense,
       onSuccess: (response){
         if (response.data != null) {
-          _balance = Common.parseDouble(response.data["balance"]);
+          final allExpense = Common.parseDouble(response.data["totalExpenses"]);
+          final allIncome = Common.parseDouble(response.data["totalIncome"]);
+          _balance = allIncome - allExpense;
           if (mounted) setState(() {});
         }
-      }, 
+      },
       onError: (error) => print("Balance API error: $error"),
     );
   }
@@ -138,17 +141,11 @@ class _TransactionPageState extends State<TransactionPage> {
     grouped[dateKey]!.add(expense);
   }
 
-  // 2️⃣ Sort theo ngày mới nhất lên đầu
-  var sortedEntries = grouped.entries.toList()
-    ..sort((a, b) => b.key.compareTo(a.key));
-
-  // Sort các giao dịch trong mỗi ngày theo thời gian mới nhất (so sánh UTC vẫn đúng)
-  for (var entry in sortedEntries) {
-    entry.value.sort((a, b) => b.dateTime.compareTo(a.dateTime));
-  }
+  // 2️⃣ Lấy entries theo thứ tự từ grouped (không sort)
+  var entries = grouped.entries.toList();
 
   // 3️⃣ Tạo danh sách Widget cho từng nhóm
-  List<Widget> containers = sortedEntries.map((entry) {
+  List<Widget> containers = entries.map((entry) {
     String dateKey = entry.key;
     List<TransactionModel> dailyExpenses = entry.value;
 
@@ -306,10 +303,13 @@ class _TransactionPageState extends State<TransactionPage> {
                                 const Text("Số dư",
                                     style: TextStyle(color: Colors.grey)),
                                 const SizedBox(height: 5),
-                                Text(
-                                  "${Common.formatNumber(_balance.toString())} đ",
-                                  style: const TextStyle(
-                                      fontSize: 18, fontWeight: FontWeight.bold),
+                                FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  child: Text(
+                                    "${Common.formatNumber(_balance.toString())} đ",
+                                    style: const TextStyle(
+                                        fontSize: 18, fontWeight: FontWeight.bold),
+                                  ),
                                 ),
                                 SizedBox(
                                     height: 30, child: Image.asset("assets/icons/wallet.png")

@@ -32,7 +32,7 @@ class _MainPageState extends State<MainPage> {
     _widgetOptions = <Widget>[
       HomePage(),
       // Gán UniqueKey() ban đầu
-      TransactionPage(key: UniqueKey(), goHome: _goHome), 
+      TransactionPage(key: UniqueKey(), goHome: _goHome),
       Placeholder(), // AddExpense dùng Navigator.push
       SharePage(),
       AccountPage(),
@@ -50,7 +50,7 @@ class _MainPageState extends State<MainPage> {
       setState(() {
         // 1. BUỘC TẢI LẠI: Tạo một UniqueKey() mới cho TransactionPage (index 1)
         _widgetOptions[1] = TransactionPage(key: UniqueKey(), goHome: _goHome);
-        
+
         // 2. Chuyển sang tab Transaction (index 1)
         _selectedIndex = 1;
       });
