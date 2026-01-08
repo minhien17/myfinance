@@ -83,6 +83,10 @@ List<ItemIcon> ListIcon = [
       title: 'income',
       description: "Thu nhập"),
   ItemIcon(
+      img: const Icon(Icons.volunteer_activism, size: 30, color: Colors.pink),
+      title: 'charity',
+      description: "Từ thiện"),
+  ItemIcon(
       img: const Icon(Icons.shopping_bag, size: 30, color: Colors.orange),
       title: 'shopping',
       description: "Mua sắm"),
@@ -108,25 +112,37 @@ List<ItemIcon> ListIcon = [
       description: "Du lịch"),
 ];
 
-// trả về description theo title
-String? titleOf(String type) {
+// trả về description theo title, nếu không tìm thấy thì trả về "Chi phí khác"
+String titleOf(String type) {
   for (int i = 0; i < ListIcon.length; i++) {
     if (ListIcon[i].title == type) {
       return ListIcon[i].description;
     }
   }
-  return "Còn lại";
+  return "Chi phí khác";
+}
+
+// trả về ItemIcon theo title, nếu không tìm thấy thì trả về icon "other"
+ItemIcon? iconOf(String type) {
+  for (int i = 0; i < ListIcon.length; i++) {
+    if (ListIcon[i].title == type) {
+      return ListIcon[i];
+    }
+  }
+  // Trả về icon "other" nếu không tìm thấy
+  return ListIcon.firstWhere(
+    (item) => item.title == 'other',
+    orElse: () => ListIcon.last,
+  );
+}
+
+// Chuẩn hóa category - nếu không tồn tại thì trả về "other"
+String normalizeCategory(String category) {
+  final exists = ListIcon.any((item) => item.title == category);
+  return exists ? category : 'other';
 }
 
 List<ItemIcon> ListIconGroup = [
-  ItemIcon(
-      img: Image.asset(
-        'assets/icons/home.png',
-        height: 30,
-        width: 30,
-      ),
-      title: 'home',
-      description: "Thuê nhà"),
   ItemIcon(
       img: Image.asset(
         'assets/icons/food.png',
@@ -137,12 +153,28 @@ List<ItemIcon> ListIconGroup = [
       description: "Ăn uống"),
   ItemIcon(
       img: Image.asset(
+        'assets/icons/home.png',
+        height: 30,
+        width: 30,
+      ),
+      title: 'home',
+      description: "Thuê nhà"),
+  ItemIcon(
+      img: Image.asset(
         'assets/icons/houseware.png',
         height: 30,
         width: 30,
       ),
-      title: 'houseware',
-      description: "Đồ gia dụng"),
+      title: 'donation',
+      description: "Quyên góp"),
+  ItemIcon(
+      img: Image.asset(
+        'assets/icons/education.png',
+        height: 30,
+        width: 30,
+      ),
+      title: 'education',
+      description: "Giáo dục"),
   ItemIcon(
       img: Image.asset(
         'assets/icons/entertain.png',
@@ -151,7 +183,46 @@ List<ItemIcon> ListIconGroup = [
       ),
       title: 'entertainment',
       description: "Vui chơi"),
-  
+  ItemIcon(
+      img: Image.asset(
+        'assets/icons/transportation.png',
+        height: 30,
+        width: 30,
+      ),
+      title: 'transportation',
+      description: "Di chuyển"),
+  ItemIcon(
+      img: const Icon(Icons.shopping_bag, size: 30, color: Colors.orange),
+      title: 'shopping',
+      description: "Mua sắm"),
+  ItemIcon(
+      img: const Icon(Icons.local_hospital, size: 30, color: Colors.red),
+      title: 'health',
+      description: "Sức khỏe"),
+  ItemIcon(
+      img: const Icon(Icons.water_drop, size: 30, color: Colors.blue),
+      title: 'utilities',
+      description: "Tiện ích"),
+  ItemIcon(
+      img: const Icon(Icons.flight, size: 30, color: Colors.teal),
+      title: 'travel',
+      description: "Du lịch"),
+  ItemIcon(
+      img: Image.asset(
+        'assets/icons/education.png',
+        height: 30,
+        width: 30,
+      ),
+      title: 'education',
+      description: "Giáo dục"),
+  ItemIcon(
+      img: Image.asset(
+        'assets/icons/family.png',
+        height: 30,
+        width: 30,
+      ),
+      title: 'family',
+      description: "Gia đình"),
   ItemIcon(
       img: Image.asset(
         'assets/icons/other.png',

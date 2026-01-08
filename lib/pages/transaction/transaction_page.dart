@@ -217,38 +217,38 @@ class _TransactionPageState extends State<TransactionPage> {
                   );
                   reLoadPage();
                 },
-                child: SizedBox(
-                  height: 48,
-                  child: Row(
-                    children: [
-                      itemLeading(expense.category),
-                      const SizedBox(width: 20),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              titleOf(expense.category) ?? "",
-                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                            ),
+                child: Row(
+                  children: [
+                    itemLeading(expense.category),
+                    const SizedBox(width: 20),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            titleOf(expense.category),
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                          ),
+                          if (expense.note != null && expense.note!.isNotEmpty) ...[
                             const SizedBox(height: 4),
-                            expense.note == '' ? SizedBox.shrink() :
                             Text(
-                              expense.note ?? "",
+                              expense.note!,
                               style: const TextStyle(color: Colors.grey),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ],
-                        ),
+                        ],
                       ),
-                      
-                      Text(
-                        Common.formatNumber(expense.amount.toString()),
-                        style: expense.category != "income" ?
-                        TextStyle(color: Colors.red, fontSize: 16) :   TextStyle(color: Colors.blue, fontSize: 16),
-                      ),
-                    ],
-                  ),
+                    ),
+                    const SizedBox(width: 10),
+                    Text(
+                      Common.formatNumber(expense.amount.toString()),
+                      style: expense.category != "income" ?
+                      TextStyle(color: Colors.red, fontSize: 16) :   TextStyle(color: Colors.blue, fontSize: 16),
+                    ),
+                  ],
                 ),
               ),
             );

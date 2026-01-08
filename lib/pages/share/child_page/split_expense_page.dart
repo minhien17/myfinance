@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:bootstrap_icons/bootstrap_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:my_finance/api/api_end_point.dart';
@@ -480,6 +482,260 @@ class _SplitExpensePageState extends State<SplitExpensePage>
     );
   }
 
+  // ==================== DIALOG THÀNH CÔNG ====================
+  void _showSuccessDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext dialogContext) {
+        return Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Container(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Icon thành công với animation
+                Container(
+                  width: 80,
+                  height: 80,
+                  decoration: BoxDecoration(
+                    color: Colors.green.shade50,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.check_circle,
+                    color: Colors.green.shade600,
+                    size: 50,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                // Tiêu đề
+                const Text(
+                  'Chia tiền thành công!',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                // Thông tin chi tiết
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Column(
+                    children: [
+                      _buildInfoRow(
+                        Icons.attach_money,
+                        'Số tiền',
+                        '${widget.amount.toStringAsFixed(0)}đ',
+                      ),
+                      const SizedBox(height: 8),
+                      _buildInfoRow(
+                        Icons.person,
+                        'Người trả',
+                        _getDisplayName(widget.paidByMember),
+                      ),
+                      const SizedBox(height: 8),
+                      _buildInfoRow(
+                        Icons.category,
+                        'Danh mục',
+                        widget.category,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+                // Nút đóng
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      Navigator.of(dialogContext).pop();
+                      // Pop 2 màn hình (về trang group)
+                      Navigator.of(context).pop(true);
+                      Navigator.of(context).pop(true);
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green.shade600,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      elevation: 0,
+                    ),
+                    child: const Text(
+                      'Hoàn tất',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildInfoRow(IconData icon, String label, String value) {
+    return Row(
+      children: [
+        Icon(icon, size: 18, color: Colors.grey.shade600),
+        const SizedBox(width: 8),
+        Text(
+          '$label: ',
+          style: TextStyle(
+            fontSize: 14,
+            color: Colors.grey.shade600,
+          ),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: Colors.black87,
+            ),
+            textAlign: TextAlign.right,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ==================== KIỂM TRA MEMBERS TRƯỚC KHI GỬI ====================
+  Future<Map<String, dynamic>> _validateMembersBeforeSubmit(List<Map<String, dynamic>> participants) async {
+    final completer = Completer<Map<String, dynamic>>();
+
+    ApiUtil.getInstance()!.get(
+      url: ApiEndpoint.groupMy,
+      onSuccess: (response) {
+        try {
+          final List<dynamic> groups = response.data ?? [];
+          final currentGroup = groups.firstWhere(
+            (g) => (g['id'] ?? g['groupId'])?.toString() == widget.group.id,
+            orElse: () => null,
+          );
+
+          if (currentGroup == null) {
+            completer.complete({'isValid': false, 'leftMembers': <String>['Nhóm không tồn tại']});
+            return;
+          }
+
+          // Lấy danh sách members đã joined từ API
+          List<String> currentMemberIds = [];
+          if (currentGroup['members'] != null) {
+            for (var m in currentGroup['members']) {
+              final member = Member.fromJson(m is Map ? Map<String, dynamic>.from(m) : {});
+              if (member.joined) {
+                currentMemberIds.add(member.id);
+              }
+            }
+          }
+
+          // Kiểm tra xem có participant nào đã rời nhóm không
+          List<String> leftMembers = [];
+          for (var p in participants) {
+            final memberId = p['memberId']?.toString() ?? '';
+            if (!currentMemberIds.contains(memberId)) {
+              // Tìm tên member đã rời
+              final member = widget.members.firstWhere(
+                (m) => m.id == memberId,
+                orElse: () => Member(id: '', name: 'Không xác định'),
+              );
+              leftMembers.add(member.name);
+            }
+          }
+
+          if (leftMembers.isNotEmpty) {
+            completer.complete({'isValid': false, 'leftMembers': leftMembers});
+          } else {
+            completer.complete({'isValid': true, 'leftMembers': <String>[]});
+          }
+        } catch (e) {
+          print('Error validating members: $e');
+          // Nếu lỗi, cho phép tiếp tục (server sẽ validate)
+          completer.complete({'isValid': true, 'leftMembers': <String>[]});
+        }
+      },
+      onError: (error) {
+        print('Error fetching members: $error');
+        // Nếu lỗi API, cho phép tiếp tục (server sẽ validate)
+        completer.complete({'isValid': true, 'leftMembers': <String>[]});
+      },
+    );
+
+    return completer.future;
+  }
+
+  void _showMembersChangedDialog(List<String> leftMembers) {
+    showDialog(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Row(
+            children: [
+              Icon(Icons.warning_amber_rounded, color: Colors.orange.shade600, size: 28),
+              const SizedBox(width: 12),
+              const Expanded(child: Text('Thành viên đã thay đổi')),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Các thành viên sau đã rời khỏi nhóm:'),
+              const SizedBox(height: 12),
+              ...leftMembers.map((name) => Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Row(
+                  children: [
+                    Icon(Icons.person_off, size: 18, color: Colors.red.shade400),
+                    const SizedBox(width: 8),
+                    Text(name, style: TextStyle(color: Colors.red.shade600, fontWeight: FontWeight.w500)),
+                  ],
+                ),
+              )),
+              const SizedBox(height: 12),
+              const Text(
+                'Vui lòng quay lại và chọn lại người tham gia chia tiền.',
+                style: TextStyle(color: Colors.grey),
+              ),
+            ],
+          ),
+          actions: [
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+                // Pop 2 màn hình về TransactionGroupPage để refresh lại members
+                Navigator.of(context).pop('members_changed');
+                Navigator.of(context).pop('members_changed');
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orange.shade600,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              child: const Text('Quay lại', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   // ==================== GỬI API ====================
   Future<void> _submitExpense() async {
     String splitType;
@@ -500,6 +756,7 @@ class _SplitExpensePageState extends State<SplitExpensePage>
           participants.add({
             'memberId': memberId.toString(),
             'userId': member.userId,
+            'memberName': member.name,
             'amount': perPerson,
           });
         }
@@ -520,6 +777,7 @@ class _SplitExpensePageState extends State<SplitExpensePage>
             participants.add({
               'memberId': entry.key.toString(),
               'userId': member.userId,
+              'memberName': member.name,
               'amount': entry.value,
             });
           }
@@ -541,6 +799,7 @@ class _SplitExpensePageState extends State<SplitExpensePage>
             participants.add({
               'memberId': entry.key.toString(),
               'userId': member.userId,
+              'memberName': member.name,
               'amount': widget.amount * entry.value / 100,
               'percent': entry.value,
             });
@@ -558,11 +817,20 @@ class _SplitExpensePageState extends State<SplitExpensePage>
       participants.add({
         'memberId': paidByMemberIdStr,
         'userId': widget.paidByMember.userId,
+        'memberName': widget.paidByMember.name,
         'amount': 0,
       });
     }
 
     showLoading(context);
+
+    // Kiểm tra danh sách members mới nhất từ API trước khi submit
+    final validationResult = await _validateMembersBeforeSubmit(participants);
+    if (!validationResult['isValid']) {
+      hideLoading();
+      _showMembersChangedDialog(validationResult['leftMembers'] as List<String>);
+      return;
+    }
 
     final Map<String, dynamic> body = {
       'title': widget.note,
@@ -572,7 +840,10 @@ class _SplitExpensePageState extends State<SplitExpensePage>
       'splitType': splitType,
       'paidByMemberId': paidByMemberIdStr,
       'paidByUserId': widget.paidByMember.userId,
+      'paidByMemberName': widget.paidByMember.name,
+      'date': widget.date.toIso8601String(),
     };
+    // paidByMemberName thì có thể có 2 người hoặc hơn
 
     // Gửi đúng tên trường theo splitType
     switch (splitType) {
@@ -596,14 +867,27 @@ class _SplitExpensePageState extends State<SplitExpensePage>
       body: body,
       onSuccess: (response) {
         hideLoading();
-        // Pop 2 màn hình (về trang group)
-        Navigator.of(context).pop(true);
-        Navigator.of(context).pop(true);
+        // Hiển thị dialog thành công
+        _showSuccessDialog();
       },
       onError: (error) {
         hideLoading();
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Lỗi: $error')),
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.error_outline, color: Colors.white),
+                const SizedBox(width: 12),
+                Expanded(child: Text('Lỗi: $error')),
+              ],
+            ),
+            backgroundColor: Colors.red.shade600,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            margin: const EdgeInsets.all(16),
+          ),
         );
       },
     );
@@ -664,7 +948,7 @@ class _SplitExpensePageState extends State<SplitExpensePage>
 
           // Nút Lưu
           Container(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
             child: SizedBox(
               width: double.infinity,
               height: 50,

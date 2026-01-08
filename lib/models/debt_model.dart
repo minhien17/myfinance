@@ -7,7 +7,9 @@ class DebtModel {
   final double totalAmount;
   final double shareAmount;
   final String? paidByMemberId; // Used for "My Debts"
+  final String? paidByName; // Tên người trả tiền
   final String? debtorMemberId; // Used for "Owed to me"
+  final String? debtorName; // Tên người nợ
   final bool isPaid;
   final DateTime? createdAt;
 
@@ -18,7 +20,9 @@ class DebtModel {
     required this.totalAmount,
     required this.shareAmount,
     this.paidByMemberId,
+    this.paidByName,
     this.debtorMemberId,
+    this.debtorName,
     required this.isPaid,
     this.createdAt,
   });
@@ -31,7 +35,9 @@ class DebtModel {
       totalAmount: Common.parseDouble(json['totalAmount']),
       shareAmount: Common.parseDouble(json['shareAmount'] ?? json['myShare']),
       paidByMemberId: json['paidByMemberId']?.toString(),
+      paidByName: json['paidByMemberName']?.toString(),
       debtorMemberId: json['debtorMemberId']?.toString(),
+      debtorName: json['debtorMemberName']?.toString(),
       isPaid: json['isPaid'] ?? false,
       createdAt: json['createdAt'] != null ? DateTime.parse(json['createdAt']) : null,
     );

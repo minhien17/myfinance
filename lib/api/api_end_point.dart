@@ -43,6 +43,7 @@ class ApiEndpoint {
   // Kong Gateway URLs (qua Kong)
   static String get _kongAuthService => "$kongGateway/api/auth";
   static String get _kongTransactionService => "$kongGateway/api/transactions";
+  static String get _kongAccountService => "$kongGateway/api/account";
   static String get _kongStatisticsService => "$kongGateway/api/reports";
   static String get _kongGroupService => "$kongGateway/api/groups";
   static String get _kongGroupExpenseService => "$kongGateway/api/group-expenses";
@@ -74,14 +75,17 @@ class ApiEndpoint {
   static String transactionById(String id) => "$transactionService/$id";
 
   // Account
-  static String get accountBalance => "$transactionService/account/balance";
   static String get allexpense => "$transactionService/allexpense";
+  static String get accountBalance => useKongGateway
+      ? "$_kongAccountService/balance"
+      : "$_directTransactionService/account/balance";
 
   // Time-based
   static String get months => "$transactionService/months";
 
   // Analysis
-  static String get analyzeAndSave => "$transactionService/analyze-and-save";
+  static String get analyzeText => "$transactionService/analyze-and-save";  // Chỉ phân tích, không lưu
+  static String get analyzeAndSave => analyzeText;  // Alias cho backward compatibility
   static String get saveAnalyzedTransactions => "$transactionService/save-analyzed-transactions";
 
   // ============================================
@@ -110,53 +114,81 @@ class ApiEndpoint {
 
   // Member operations
   static String memberUserId(String memberId) => "$groupService/members/$memberId/user-id";
+  static String groupRemoveMember(String groupId, String memberId) => "$groupService/$groupId/members/$memberId";
+
+  // ============================================
+  // 📨 GROUP INVITATION ENDPOINTS
+  // ============================================
+  // Invite user to group: POST /:groupId/invitations
+  static String groupInvite(String groupId) => "$groupService/$groupId/invitations";
+  // Get pending invitations of a group: GET /:groupId/invitations
+  static String groupInvitations(String groupId) => "$groupService/$groupId/invitations";
+  // Get my pending invitations: GET /invitations/my
+  static String get groupInvitationsMy => "$groupService/invitations/my";
+  // Accept invitation: POST /invitations/:id/accept
+  static String groupInvitationAccept(String invitationId) => "$groupService/invitations/$invitationId/accept";
+  // Reject invitation: POST /invitations/:id/reject
+  static String groupInvitationReject(String invitationId) => "$groupService/invitations/$invitationId/reject";
+  // Cancel invitation: DELETE /:groupId/invitations/:id
+  static String groupInvitationCancel(String groupId, String invitationId) => "$groupService/$groupId/invitations/$invitationId";
 
   // ============================================
   // 💸 GROUP EXPENSE ENDPOINTS
-  // Kong: /api/group-expenses/* -> transaction-service:3001/api/group-expenses/*
-  // (strip_path=false, giữ nguyên path)
+  // Kong: /api/group-expenses/:gId/expenses/* -> transaction-service:3001/groups/:gId/expenses/*
   // ============================================
   static String groupExpenses(String groupId) {
     if (useKongGateway) {
-      return "$_kongGroupExpenseService/groups/$groupId/expenses";
+      return "$_kongGroupExpenseService/$groupId/expenses";
     }
     return "$_directTransactionService/groups/$groupId/expenses";
   }
 
   static String groupExpenseMyDebts(String groupId) {
     if (useKongGateway) {
-      return "$_kongGroupExpenseService/groups/$groupId/expenses/my-debts";
+      return "$_kongGroupExpenseService/$groupId/expenses/my-debts";
     }
     return "$_directTransactionService/groups/$groupId/expenses/my-debts";
   }
 
   static String groupExpenseOwedToMe(String groupId) {
     if (useKongGateway) {
-      return "$_kongGroupExpenseService/groups/$groupId/expenses/owed-to-me";
+      return "$_kongGroupExpenseService/$groupId/expenses/owed-to-me";
     }
     return "$_directTransactionService/groups/$groupId/expenses/owed-to-me";
   }
 
   static String groupExpenseMarkPaid(String groupId) {
     if (useKongGateway) {
-      return "$_kongGroupExpenseService/groups/$groupId/expenses/mark-paid";
+      return "$_kongGroupExpenseService/$groupId/expenses/mark-paid";
     }
     return "$_directTransactionService/groups/$groupId/expenses/mark-paid";
   }
 
   static String groupExpensePaymentHistory(String groupId) {
     if (useKongGateway) {
-      return "$_kongGroupExpenseService/groups/$groupId/expenses/payment-history";
+      return "$_kongGroupExpenseService/$groupId/expenses/payment-history";
     }
     return "$_directTransactionService/groups/$groupId/expenses/payment-history";
   }
 
   static String groupBalances(String groupId) {
     if (useKongGateway) {
-      return "$_kongGroupExpenseService/groups/$groupId/balances";
+      return "$_kongGroupExpenseService/$groupId/balances";
     }
     return "$_directTransactionService/groups/$groupId/balances";
   }
+
+  // ============================================
+  // 📡 SSE (Server-Sent Events) ENDPOINTS
+  // Real-time updates for groups and expenses
+  // ============================================
+  // Group SSE (group-service:3004)
+  static String groupSseEvents(String groupId) => "$_directGroupService/sse/$groupId/events";
+  static String get userGroupsSseEvents => "$_directGroupService/sse/user/events";
+
+  // Expense SSE (transaction-service:3001)
+  static String groupExpenseSseEvents(String groupId) => "$_directTransactionService/groups/$groupId/expenses/sse/events";
+  static String get userExpensesSseEvents => "$_directTransactionService/expenses/sse/user/events";
 
   // ============================================
   // 🔗 LEGACY ENDPOINTS (for backward compatibility)

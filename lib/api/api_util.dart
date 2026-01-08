@@ -113,6 +113,7 @@ class ApiUtil {
     try {
       print('---Post request ---');
       print('URL: $uri');
+      print('Body: ${jsonEncode(body)}');
 
       var res = await http.post(
         uri,
@@ -125,7 +126,7 @@ class ApiUtil {
 
       print('--- Post Response ---');
       print('Status code: ${res.statusCode}');
-      // print('Body: ${res.body}');
+      print('Response Body: ${res.body}');
 
       var data = jsonDecode(res.body);
       if (res.statusCode >= 400) {

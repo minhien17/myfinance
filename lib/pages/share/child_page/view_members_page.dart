@@ -4,6 +4,7 @@ import 'package:my_finance/api/api_util.dart';
 import 'package:my_finance/common/loading_dialog.dart';
 import 'package:my_finance/models/member_model.dart';
 import 'package:my_finance/res/app_colors.dart';
+import 'package:my_finance/services/websocket_service.dart';
 
 class ViewMembersPage extends StatefulWidget {
   final String groupId;
@@ -27,16 +28,152 @@ class ViewMembersPage extends StatefulWidget {
 
 class _ViewMembersPageState extends State<ViewMembersPage> {
   late List<Member> _members;
+  late String? _ownerId;
+
+  // 🔌 WebSocket service
+  final WebSocketService _wsService = WebSocketService();
 
   @override
   void initState() {
     super.initState();
     _members = List.from(widget.members);
+    _ownerId = widget.ownerId;
     print("🔍 ViewMembersPage - initState with ${_members.length} members, ownerId: ${widget.ownerId}");
+    _setupWebSocket();
+  }
+
+  // 🔌 WebSocket: Setup listeners
+  void _setupWebSocket() {
+    _wsService.connect();
+    _wsService.joinGroupRoom(widget.groupId, userId: widget.currentUserId);
+
+    // Khi có member mới tham gia
+    _wsService.onMemberJoined = (data) {
+      final eventGroupId = data['groupId']?.toString();
+      if (eventGroupId != widget.groupId) return;
+
+      print('🔌 WS ViewMembers: Member joined');
+      _fetchMembers();
+      _showSnackBar('${data['memberName'] ?? 'Thành viên mới'} đã tham gia', Colors.green);
+    };
+
+    // Khi member rời nhóm
+    _wsService.onMemberLeft = (data) {
+      final eventGroupId = data['groupId']?.toString();
+      if (eventGroupId != widget.groupId) return;
+
+      print('🔌 WS ViewMembers: Member left');
+      _fetchMembers();
+      _showSnackBar('${data['memberName'] ?? 'Thành viên'} đã rời nhóm', Colors.orange);
+    };
+
+    // Khi member được thêm vào
+    _wsService.onMemberAdded = (data) {
+      final eventGroupId = data['groupId']?.toString();
+      if (eventGroupId != widget.groupId) return;
+
+      print('🔌 WS ViewMembers: Member added');
+      _fetchMembers();
+      _showSnackBar('${data['memberName'] ?? 'Thành viên mới'} được thêm vào nhóm', Colors.green);
+    };
+
+    // Khi member bị xóa
+    _wsService.onMemberRemoved = (data) {
+      final eventGroupId = data['groupId']?.toString();
+      if (eventGroupId != widget.groupId) return;
+
+      print('🔌 WS ViewMembers: Member removed');
+      _fetchMembers();
+      _showSnackBar('${data['memberName'] ?? 'Thành viên'} đã bị xóa', Colors.orange);
+    };
+
+    // Khi quyền sở hữu được chuyển
+    _wsService.onOwnershipTransferred = (data) {
+      final eventGroupId = data['groupId']?.toString();
+      if (eventGroupId != widget.groupId) return;
+
+      print('🔌 WS ViewMembers: Ownership transferred');
+      setState(() {
+        _ownerId = data['newOwnerUserId']?.toString();
+      });
+      _fetchMembers();
+      _showSnackBar('Quyền trưởng nhóm đã chuyển cho ${data['newOwnerName'] ?? 'thành viên khác'}', Colors.amber);
+    };
+
+    // Khi nhóm bị xóa
+    _wsService.onGroupDeleted = (data) {
+      final eventGroupId = data['groupId']?.toString();
+      if (eventGroupId != widget.groupId) return;
+
+      print('🔌 WS ViewMembers: Group deleted');
+      _showSnackBar('Nhóm đã bị xóa', Colors.red);
+      Navigator.pop(context, true);
+      Navigator.pop(context, true);
+    };
+  }
+
+  void _showSnackBar(String message, Color color) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.notifications_active, color: Colors.white, size: 20),
+            const SizedBox(width: 12),
+            Expanded(child: Text(message)),
+          ],
+        ),
+        backgroundColor: color.withOpacity(0.9),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        margin: const EdgeInsets.all(16),
+        duration: const Duration(seconds: 3),
+      ),
+    );
+  }
+
+  // Fetch members từ API
+  void _fetchMembers() {
+    ApiUtil.getInstance()!.get(
+      url: ApiEndpoint.groupMy,
+      onSuccess: (response) {
+        if (!mounted) return;
+
+        final List<dynamic> groups = response.data ?? [];
+        final currentGroup = groups.firstWhere(
+          (g) => (g['id'] ?? g['groupId'])?.toString() == widget.groupId,
+          orElse: () => null,
+        );
+
+        if (currentGroup != null && currentGroup['members'] != null) {
+          final List<dynamic> membersData = currentGroup['members'];
+          setState(() {
+            _members = membersData.map((m) {
+              return Member.fromJson(m is Map ? Map<String, dynamic>.from(m) : {});
+            }).toList();
+            // Cập nhật ownerId nếu có
+            final newOwnerId = (currentGroup['ownerId'] ?? currentGroup['ownerUserId'])?.toString();
+            if (newOwnerId != null) {
+              _ownerId = newOwnerId;
+            }
+          });
+        }
+      },
+      onError: (error) {
+        print('❌ Error fetching members: $error');
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    _wsService.leaveGroupRoom(widget.groupId);
+    _wsService.clearGroupCallbacks(); // Không xóa onAddedToGroup
+    super.dispose();
   }
 
   void _showLeaveGroupDialog() {
-    final isOwner = widget.currentUserId == widget.ownerId;
+    final isOwner = widget.currentUserId == _ownerId;
 
     showDialog(
       context: context,
@@ -137,11 +274,98 @@ class _ViewMembersPageState extends State<ViewMembersPage> {
     );
   }
 
+  // 🗑️ Xóa thành viên (chỉ trưởng nhóm)
+  void _showRemoveMemberDialog(Member member) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Icon(Icons.person_remove, color: Colors.red.shade600),
+            const SizedBox(width: 12),
+            const Text('Xóa thành viên'),
+          ],
+        ),
+        content: Text(
+          'Bạn có chắc chắn muốn xóa "${member.name}" khỏi nhóm?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Hủy'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _removeMember(member);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red.shade600,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: const Text('Xóa', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _removeMember(Member member) {
+    showLoading(context);
+
+    // Dùng DELETE method để xóa thành viên
+    ApiUtil.getInstance()!.delete(
+      url: ApiEndpoint.groupRemoveMember(widget.groupId, member.id),
+      onSuccess: (response) {
+        hideLoading();
+
+        // Cập nhật danh sách local
+        setState(() {
+          _members.removeWhere((m) => m.id == member.id);
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.check_circle_outline, color: Colors.white),
+                const SizedBox(width: 12),
+                Expanded(child: Text('Đã xóa "${member.name}" khỏi nhóm')),
+              ],
+            ),
+            backgroundColor: Colors.green.shade600,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            margin: const EdgeInsets.all(16),
+          ),
+        );
+      },
+      onError: (error) {
+        hideLoading();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.error_outline, color: Colors.white),
+                const SizedBox(width: 12),
+                Expanded(child: Text('Lỗi: $error')),
+              ],
+            ),
+            backgroundColor: Colors.red.shade600,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            margin: const EdgeInsets.all(16),
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final joinedCount = _members.where((m) => m.joined).length;
-    // ignore: unused_local_variable
-    final isCurrentUserOwner = widget.currentUserId == widget.ownerId;
+    final isCurrentUserOwner = widget.currentUserId == _ownerId;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -217,7 +441,7 @@ class _ViewMembersPageState extends State<ViewMembersPage> {
               itemBuilder: (context, index) {
                 final member = _members[index];
                 final isCurrentUser = member.userId == widget.currentUserId;
-                final isOwner = member.userId != null && member.userId == widget.ownerId;
+                final isOwner = member.userId != null && member.userId == _ownerId;
                 final displayName = isCurrentUser
                     ? '${member.name} (bạn)'
                     : member.name;
@@ -286,12 +510,9 @@ class _ViewMembersPageState extends State<ViewMembersPage> {
                       ),
                       overflow: TextOverflow.ellipsis,
                     ),
-                    subtitle: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (isOwner)
-                          Container(
-                            margin: const EdgeInsets.only(top: 4, bottom: 4),
+                    subtitle: isOwner
+                        ? Container(
+                            margin: const EdgeInsets.only(top: 4),
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                             decoration: BoxDecoration(
                               color: Colors.amber.shade100,
@@ -312,36 +533,39 @@ class _ViewMembersPageState extends State<ViewMembersPage> {
                                 ),
                               ],
                             ),
+                          )
+                        : null,
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
                           ),
-                        if (member.userId?.isNotEmpty ?? false)
-                          Text(
-                            'ID: ${member.userId!.substring(0, member.userId!.length > 8 ? 8 : member.userId!.length)}...',
-                            style: const TextStyle(
+                          decoration: BoxDecoration(
+                            color: member.joined
+                                ? AppColors.green.withOpacity(0.1)
+                                : Colors.orange.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            member.joined ? 'Đã tham gia' : 'Chờ tham gia',
+                            style: TextStyle(
+                              color: member.joined ? AppColors.green : Colors.orange,
                               fontSize: 12,
-                              color: Colors.grey,
+                              fontWeight: FontWeight.w500,
                             ),
                           ),
-                      ],
-                    ),
-                    trailing: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: member.joined
-                            ? AppColors.green.withOpacity(0.1)
-                            : Colors.orange.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        member.joined ? 'Đã tham gia' : 'Chờ tham gia',
-                        style: TextStyle(
-                          color: member.joined ? AppColors.green : Colors.orange,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
                         ),
-                      ),
+                        // Nút xóa thành viên (chỉ hiện cho trưởng nhóm, không xóa chính mình và trưởng nhóm)
+                        if (isCurrentUserOwner && !isCurrentUser && !isOwner)
+                          IconButton(
+                            icon: Icon(Icons.person_remove, color: Colors.red.shade400, size: 20),
+                            tooltip: 'Xóa thành viên',
+                            onPressed: () => _showRemoveMemberDialog(member),
+                          ),
+                      ],
                     ),
                   ),
                 );

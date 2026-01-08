@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:bootstrap_icons/bootstrap_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -10,6 +12,7 @@ import 'package:my_finance/res/app_colors.dart';
 import 'package:my_finance/res/app_styles.dart';
 import 'package:my_finance/api/api_end_point.dart';
 import 'package:my_finance/api/api_util.dart';
+import 'package:my_finance/services/websocket_service.dart';
 import 'package:my_finance/shared_preference.dart';
 
 class SharePage extends StatefulWidget {
@@ -24,8 +27,13 @@ class _SharePageState extends State<SharePage> {
   bool _isLoading = false;
   // Dữ liệu nhóm
   List<Group> _groups = [];
+  // Danh sách lời mời đang chờ
+  List<Map<String, dynamic>> _pendingInvitations = [];
   String username = "";
   String currentUserId = "";
+
+  // 🔌 WebSocket service
+  final WebSocketService _wsService = WebSocketService();
 
   @override
   void initState() {
@@ -40,10 +48,147 @@ class _SharePageState extends State<SharePage> {
     _loadUsernameAndFetchGroups();
   }
 
+  // 🔌 WebSocket: Setup và đăng ký listeners
+  void _setupWebSocket() {
+    print('🔌 SharePage: Setting up WebSocket...');
+    print('🔌 SharePage: currentUserId = $currentUserId');
+
+    _wsService.connect();
+
+    // Join user room để nhận thông báo khi được thêm vào nhóm mới
+    if (currentUserId.isNotEmpty) {
+      print('🔌 SharePage: Joining user room for userId: $currentUserId');
+      _wsService.joinUserRoom(currentUserId);
+    } else {
+      print('⚠️ SharePage: currentUserId is empty, cannot join user room!');
+    }
+
+    // Setup callbacks
+    _setupWebSocketCallbacks();
+  }
+
+  @override
+  void dispose() {
+    _wsService.clearCallbacks();
+    super.dispose();
+  }
+
+  // Fetch groups without showing loading indicator (for WebSocket updates)
+  Future<void> _fetchGroupsSilent() async {
+    ApiUtil.getInstance()!.get(
+      url: ApiEndpoint.groupMy,
+      onSuccess: (response) {
+        if (!mounted) return;
+        try {
+          final List<dynamic> data = response.data;
+          final List<Group> fetchedGroups = _parseGroups(data);
+
+          // Only update if data changed
+          if (_hasGroupsChanged(fetchedGroups)) {
+            print('🔌 WebSocket: Groups updated');
+            setState(() {
+              _groups = fetchedGroups;
+            });
+          }
+        } catch (e) {
+          print("🔌 WebSocket fetch error: $e");
+        }
+      },
+      onError: (error) {
+        print("🔌 WebSocket fetch error: $error");
+      },
+    );
+  }
+
+  // Check if groups list has changed
+  bool _hasGroupsChanged(List<Group> newGroups) {
+    if (_groups.length != newGroups.length) return true;
+    for (int i = 0; i < _groups.length; i++) {
+      if (_groups[i].id != newGroups[i].id ||
+          _groups[i].name != newGroups[i].name ||
+          _groups[i].number != newGroups[i].number ||
+          _groups[i].totalMembers != newGroups[i].totalMembers) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // Parse groups from API response
+  List<Group> _parseGroups(List<dynamic> data) {
+    return data.map((item) {
+      List<Member> groupMembers = [];
+      String? currentMemberName;
+      int joinedCount = 0;
+      int totalCount = 0;
+
+      if (item["members"] != null) {
+        final List<dynamic> membersData = item["members"];
+        totalCount = membersData.length;
+
+        for (var m in membersData) {
+          final member = Member.fromJson(
+            m is Map ? Map<String, dynamic>.from(m) : {},
+          );
+          groupMembers.add(member);
+
+          if (member.joined) {
+            joinedCount++;
+            if (member.userId != null && member.userId == currentUserId) {
+              currentMemberName = member.name;
+            }
+          }
+        }
+      } else {
+        joinedCount = item["joinedMemberCount"] ?? 0;
+        totalCount = item["memberCount"] ?? 0;
+      }
+
+      return Group(
+        id: (item["id"] ?? item["groupId"] ?? "").toString(),
+        name: (item["name"] ?? "No Name").toString(),
+        code: (item["code"] ?? "").toString(),
+        number: joinedCount,
+        totalMembers: totalCount,
+        members: groupMembers,
+        memberName: currentMemberName,
+        ownerId: (item["ownerId"] ?? item["ownerUserId"] ?? item["createdByUserId"])?.toString(),
+      );
+    }).toList();
+  }
+
   Future<void> _loadUsernameAndFetchGroups() async {
     username = await SharedPreferenceUtil.getUsername();
     currentUserId = await SharedPreferenceUtil.getUserId();
+    _setupWebSocket(); // Setup WebSocket sau khi có userId
     await _fetchGroups();
+    await _fetchPendingInvitations();
+  }
+
+  // Lấy danh sách lời mời đang chờ
+  Future<void> _fetchPendingInvitations() async {
+    ApiUtil.getInstance()!.get(
+      url: ApiEndpoint.groupInvitationsMy,
+      onSuccess: (response) {
+        if (!mounted) return;
+        try {
+          final List<dynamic> data = response.data ?? [];
+          setState(() {
+            _pendingInvitations = data.map((item) => Map<String, dynamic>.from(item)).toList();
+          });
+          print('📨 Fetched ${_pendingInvitations.length} pending invitations');
+          // Log cấu trúc dữ liệu để debug
+          for (var inv in _pendingInvitations) {
+            print('📨 Invitation data: $inv');
+          }
+        } catch (e) {
+          print('Error parsing pending invitations: $e');
+        }
+      },
+      onError: (error) {
+        print('Error fetching pending invitations: $error');
+      },
+    );
   }
 
   Future<void> _fetchGroups() async {
@@ -153,6 +298,102 @@ class _SharePageState extends State<SharePage> {
     _fetchGroups();
   }
 
+  // Hiển thị dialog lời mời vào nhóm
+  void _showInvitationDialog(Map<String, dynamic> data) {
+    final invitationId = data['invitationId']?.toString() ?? '';
+    final groupName = data['groupName']?.toString() ?? 'Unknown';
+    final inviterName = data['inviterName']?.toString() ?? 'Someone';
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: const Text('Lời mời tham gia nhóm'),
+          content: Text('$inviterName đã mời bạn tham gia nhóm "$groupName"'),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+                _rejectInvitation(invitationId);
+              },
+              child: const Text('Từ chối', style: TextStyle(color: Colors.red)),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+                _acceptInvitation(invitationId);
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.green,
+              ),
+              child: const Text('Chấp nhận', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // Chấp nhận lời mời
+  void _acceptInvitation(String invitationId) {
+    if (invitationId.isEmpty) return;
+
+    ApiUtil.getInstance()!.post(
+      url: ApiEndpoint.groupInvitationAccept(invitationId),
+      body: {},
+      onSuccess: (response) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Đã chấp nhận lời mời'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        _fetchGroups();
+        _fetchPendingInvitations();
+      },
+      onError: (error) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Lỗi: ${error.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      },
+    );
+  }
+
+  // Từ chối lời mời
+  void _rejectInvitation(String invitationId) {
+    if (invitationId.isEmpty) return;
+
+    ApiUtil.getInstance()!.post(
+      url: ApiEndpoint.groupInvitationReject(invitationId),
+      body: {},
+      onSuccess: (response) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Đã từ chối lời mời'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        _fetchPendingInvitations();
+      },
+      onError: (error) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Lỗi: ${error.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      },
+    );
+  }
+
   void _navigateToGroupDetail(Group group) async {
     final result = await Navigator.push(
       context,
@@ -160,10 +401,108 @@ class _SharePageState extends State<SharePage> {
         builder: (context) => TransactionGroupPage(group: group),
       ),
     );
-    // Nếu result = true (rời nhóm), reload danh sách
+    // Re-setup callbacks sau khi quay về từ page con
+    _setupWebSocketCallbacks();
+    // Luôn refresh data khi quay về (có thể có thay đổi member count)
+    _fetchGroupsSilent();
+    // Nếu result = true (rời nhóm), reload với loading indicator
     if (result == true) {
       _fetchGroups();
     }
+  }
+
+  // Setup lại callbacks (dùng khi quay về từ page con)
+  void _setupWebSocketCallbacks() {
+    // Khi user được thêm vào nhóm mới
+    _wsService.onAddedToGroup = (data) {
+      print('🔌 WS SharePage: ✅ Added to group event received! - $data');
+      _fetchGroupsSilent();
+    };
+
+    // Khi có member mới tham gia nhóm
+    _wsService.onMemberJoined = (data) {
+      print('🔌 WS SharePage: Member joined - $data');
+      _fetchGroupsSilent();
+    };
+
+    // Khi member rời nhóm
+    _wsService.onMemberLeft = (data) {
+      print('🔌 WS SharePage: Member left - $data');
+      _fetchGroupsSilent();
+    };
+
+    // Khi member được thêm vào nhóm
+    _wsService.onMemberAdded = (data) {
+      print('🔌 WS SharePage: Member added - $data');
+      _fetchGroupsSilent();
+    };
+
+    // Khi member bị xóa khỏi nhóm
+    _wsService.onMemberRemoved = (data) {
+      print('🔌 WS SharePage: Member removed - $data');
+      _fetchGroupsSilent();
+    };
+
+    // Khi nhóm bị xóa
+    _wsService.onGroupDeleted = (data) {
+      print('🔌 WS SharePage: Group deleted - $data');
+      _fetchGroupsSilent();
+    };
+
+    // Khi quyền sở hữu được chuyển
+    _wsService.onOwnershipTransferred = (data) {
+      print('🔌 WS SharePage: Ownership transferred - $data');
+      _fetchGroupsSilent();
+    };
+
+    // ========== INVITATION EVENTS ==========
+
+    // Khi nhận được lời mời vào nhóm
+    _wsService.onGroupInvitation = (data) {
+      print('🔌 WS SharePage: Group invitation received - $data');
+      _fetchPendingInvitations();
+      if (mounted) {
+        _showInvitationDialog(data);
+      }
+    };
+
+    // Khi lời mời bị hủy
+    _wsService.onInvitationCancelled = (data) {
+      print('🔌 WS SharePage: Invitation cancelled - $data');
+      _fetchPendingInvitations();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Lời mời vào nhóm "${data['groupName'] ?? 'Unknown'}" đã bị hủy'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+    };
+
+    // Khi lời mời được chấp nhận (cho owner)
+    _wsService.onInvitationAccepted = (data) {
+      print('🔌 WS SharePage: Invitation accepted - $data');
+      _fetchGroupsSilent();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${data['userName'] ?? 'User'} đã chấp nhận lời mời'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    };
+
+    // Khi lời mời bị từ chối (cho owner)
+    _wsService.onInvitationRejected = (data) {
+      print('🔌 WS SharePage: Invitation rejected - $data');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${data['userName'] ?? 'User'} đã từ chối lời mời'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    };
   }
 
   @override
@@ -193,6 +532,7 @@ class _SharePageState extends State<SharePage> {
       body: RefreshIndicator(
         onRefresh: () async {
           await _fetchGroups();
+          await _fetchPendingInvitations();
         },
         child: Padding(
           padding: const EdgeInsets.all(16.0),
@@ -202,26 +542,29 @@ class _SharePageState extends State<SharePage> {
               Expanded(
                 child: _isLoading
                     ? const Center(child: CircularProgressIndicator())
-                    : _groups.isEmpty
-                    ? ListView(
+                    : ListView(
                         physics: const AlwaysScrollableScrollPhysics(),
                         children: [
-                          SizedBox(height: MediaQuery.of(context).size.height * 0.3),
-                          Center(
-                            child: Text(
-                              'Bạn chưa có nhóm nào.\nNhấn "Thêm nhóm" để tạo hoặc tham gia nhóm.',
-                              style: TextStyle(fontSize: 16, color: Colors.grey[600]),
-                              textAlign: TextAlign.center,
-                            ),
-                          ),
+                          // Section lời mời đang chờ
+                          if (_pendingInvitations.isNotEmpty) ...[
+                            _buildPendingInvitationsSection(),
+                            const SizedBox(height: 16),
+                          ],
+                          // Danh sách nhóm
+                          if (_groups.isEmpty && _pendingInvitations.isEmpty)
+                            Padding(
+                              padding: EdgeInsets.only(top: MediaQuery.of(context).size.height * 0.25),
+                              child: Center(
+                                child: Text(
+                                  'Bạn chưa có nhóm nào.\nNhấn "Thêm nhóm" để tạo hoặc tham gia nhóm.',
+                                  style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
+                            )
+                          else
+                            ..._groups.map((group) => _buildGroupItem(group)),
                         ],
-                      )
-                    : ListView.builder(
-                        physics: const AlwaysScrollableScrollPhysics(),
-                        itemCount: _groups.length,
-                        itemBuilder: (context, index) {
-                          return _buildGroupItem(_groups[index]);
-                        },
                       ),
               ),
               const SizedBox(height: 20),
@@ -234,6 +577,117 @@ class _SharePageState extends State<SharePage> {
   }
 
   // --- WIDGET CON ---
+
+  // Section hiển thị lời mời đang chờ
+  Widget _buildPendingInvitationsSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(Icons.mail_outline, color: Colors.orange.shade600, size: 20),
+            const SizedBox(width: 8),
+            Text(
+              'Lời mời đang chờ (${_pendingInvitations.length})',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: Colors.orange.shade700,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        ..._pendingInvitations.map((invitation) => _buildInvitationItem(invitation)),
+      ],
+    );
+  }
+
+  // Item lời mời
+  Widget _buildInvitationItem(Map<String, dynamic> invitation) {
+    final invitationId = invitation['id']?.toString() ?? invitation['invitationId']?.toString() ?? '';
+    final groupName = invitation['groupName']?.toString() ?? invitation['group']?['name']?.toString() ?? 'Unknown';
+    final inviterName = invitation['inviterName']?.toString() ?? invitation['inviter']?['username']?.toString() ?? 'Someone';
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10.0),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.orange.shade50,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.orange.shade200),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.shade100,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(Icons.group_add, color: Colors.orange.shade700, size: 20),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        groupName,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.black87,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Được mời bởi $inviterName',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton(
+                  onPressed: () => _rejectInvitation(invitationId),
+                  style: TextButton.styleFrom(
+                    foregroundColor: Colors.red.shade600,
+                  ),
+                  child: const Text('Từ chối'),
+                ),
+                const SizedBox(width: 8),
+                ElevatedButton(
+                  onPressed: () => _acceptInvitation(invitationId),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.green,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  ),
+                  child: const Text('Chấp nhận'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   Widget _buildGroupItem(Group group) {
     // Thiết kế tương đồng với các ô màu xám trong ảnh

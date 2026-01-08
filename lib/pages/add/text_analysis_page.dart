@@ -34,7 +34,7 @@ class _TextAnalysisPageState extends State<TextAnalysisPage> {
     });
 
     ApiUtil.getInstance()!.post(
-      url: ApiEndpoint.analyzeAndSave,
+      url: ApiEndpoint.analyzeText,  // Chỉ phân tích, không lưu vào database
       body: {"text": text},
       onSuccess: (response) {
         final result = TextAnalysisResult.fromJson(response.data);
