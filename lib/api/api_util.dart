@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
-// import 'package:http_parser/http_parser.dart';
+import 'dart:io';
+import 'package:http_parser/http_parser.dart';
 import 'package:http/http.dart' as http;
 import 'package:my_finance/shared_preference.dart';
 
@@ -227,6 +228,67 @@ class ApiUtil {
       message: response.reasonPhrase,
       // status: jsonDecode(response.body)['status']
     );
+  }
+
+  /// Upload file với multipart/form-data
+  /// Dùng cho upload ảnh chứng minh thanh toán
+  Future<void> postMultipart({
+    required String url,
+    required Map<String, String> fields,
+    required File imageFile,
+    required Function(BaseResponse response) onSuccess,
+    required Function(dynamic error) onError,
+  }) async {
+    String token = await SharedPreferenceUtil.getToken();
+    var uri = Uri.parse(url);
+
+    try {
+      print('--- POST Multipart Request ---');
+      print('URL: $uri');
+      print('Fields: $fields');
+      print('Image path: ${imageFile.path}');
+
+      var request = http.MultipartRequest('POST', uri);
+      request.headers['Authorization'] = 'Bearer $token';
+      request.fields.addAll(fields);
+
+      // Xác định content type dựa vào extension
+      String extension = imageFile.path.split('.').last.toLowerCase();
+      MediaType contentType;
+      if (extension == 'png') {
+        contentType = MediaType('image', 'png');
+      } else if (extension == 'gif') {
+        contentType = MediaType('image', 'gif');
+      } else {
+        contentType = MediaType('image', 'jpeg');
+      }
+
+      request.files.add(
+        await http.MultipartFile.fromPath(
+          'file',
+          imageFile.path,
+          contentType: contentType,
+        ),
+      );
+
+      var streamedResponse = await request.send().timeout(const Duration(seconds: 60));
+      var response = await http.Response.fromStream(streamedResponse);
+
+      print('--- POST Multipart Response ---');
+      print('Status code: ${response.statusCode}');
+      print('Body: ${response.body}');
+
+      var data = jsonDecode(response.body);
+      if (response.statusCode >= 400) {
+        final message = data['message'] ?? 'Lỗi upload ảnh';
+        onError(message);
+      } else {
+        onSuccess(getBaseResponse2(response));
+      }
+    } catch (e) {
+      print('Multipart upload error: $e');
+      onError(e.toString());
+    }
   }
 }
 

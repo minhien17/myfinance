@@ -12,6 +12,10 @@ class DebtModel {
   final String? debtorName; // Tên người nợ
   final bool isPaid;
   final DateTime? createdAt;
+  // Payment proof fields
+  final String? proofImageUrl;     // URL ảnh chứng minh thanh toán
+  final String? proofStatus;       // pending, approved, rejected, null
+  final DateTime? proofUploadedAt; // Thời gian upload ảnh
 
   DebtModel({
     required this.shareId,
@@ -25,6 +29,9 @@ class DebtModel {
     this.debtorName,
     required this.isPaid,
     this.createdAt,
+    this.proofImageUrl,
+    this.proofStatus,
+    this.proofUploadedAt,
   });
 
   factory DebtModel.fromJson(Map<String, dynamic> json) {
@@ -40,6 +47,17 @@ class DebtModel {
       debtorName: json['debtorMemberName']?.toString(),
       isPaid: json['isPaid'] ?? false,
       createdAt: json['createdAt'] != null ? DateTime.parse(json['createdAt']) : null,
+      proofImageUrl: json['proofImageUrl']?.toString(),
+      proofStatus: json['proofStatus']?.toString(),
+      proofUploadedAt: json['proofUploadedAt'] != null
+          ? DateTime.tryParse(json['proofUploadedAt'].toString())
+          : null,
     );
   }
+
+  /// Kiểm tra xem đã có ảnh chứng minh chưa
+  bool get hasProof => proofImageUrl != null && proofImageUrl!.isNotEmpty;
+
+  /// Kiểm tra xem ảnh chứng minh đang chờ duyệt
+  bool get isProofPending => proofStatus == 'pending';
 }

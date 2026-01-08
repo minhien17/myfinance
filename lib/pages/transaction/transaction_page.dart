@@ -128,16 +128,27 @@ class _TransactionPageState extends State<TransactionPage> {
   }
 
   List<Widget> buildExpenseList(List<TransactionModel> lists, BuildContext context) {
-  // 1️⃣ Gom nhóm theo ngày (YYYY-MM-DD)
+  // 1️⃣ Gom nhóm theo ngày (YYYY-MM-DD) - convert về local time
   Map<String, List<TransactionModel>> grouped = {};
   for (var expense in lists) {
-    String dateKey = expense.dateTime.toIso8601String().split('T')[0];
+    // Convert UTC to local time để group đúng ngày
+    final localDateTime = expense.dateTime.toLocal();
+    String dateKey = "${localDateTime.year}-${localDateTime.month.toString().padLeft(2, '0')}-${localDateTime.day.toString().padLeft(2, '0')}";
     grouped.putIfAbsent(dateKey, () => []);
     grouped[dateKey]!.add(expense);
   }
 
-  // 2️⃣ Tạo danh sách Widget cho từng nhóm
-  List<Widget> containers = grouped.entries.map((entry) {
+  // 2️⃣ Sort theo ngày mới nhất lên đầu
+  var sortedEntries = grouped.entries.toList()
+    ..sort((a, b) => b.key.compareTo(a.key));
+
+  // Sort các giao dịch trong mỗi ngày theo thời gian mới nhất (so sánh UTC vẫn đúng)
+  for (var entry in sortedEntries) {
+    entry.value.sort((a, b) => b.dateTime.compareTo(a.dateTime));
+  }
+
+  // 3️⃣ Tạo danh sách Widget cho từng nhóm
+  List<Widget> containers = sortedEntries.map((entry) {
     String dateKey = entry.key;
     List<TransactionModel> dailyExpenses = entry.value;
 
@@ -245,8 +256,9 @@ class _TransactionPageState extends State<TransactionPage> {
                     const SizedBox(width: 10),
                     Text(
                       Common.formatNumber(expense.amount.toString()),
-                      style: expense.category != "income" ?
-                      TextStyle(color: Colors.red, fontSize: 16) :   TextStyle(color: Colors.blue, fontSize: 16),
+                      style: expense.category == "income"
+                        ? const TextStyle(color: Colors.blue, fontSize: 16)
+                        : const TextStyle(color: Colors.red, fontSize: 16),
                     ),
                   ],
                 ),
@@ -521,11 +533,12 @@ class _TransactionPageState extends State<TransactionPage> {
       onSuccess: (response) {
         if (response.data != null && response.data is List) {
           final List<dynamic> jsonList = response.data;
+
           lists = jsonList
             .where((json) => json is Map<String, dynamic>)
             .map((json) => TransactionModel.fromJson(json))
             .toList();
-          
+
           // Tính toán lại tổng thu/chi cho tháng này
           _totalIncome = 0;
           _totalExpense = 0;

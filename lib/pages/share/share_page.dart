@@ -302,7 +302,8 @@ class _SharePageState extends State<SharePage> {
   void _showInvitationDialog(Map<String, dynamic> data) {
     final invitationId = data['invitationId']?.toString() ?? '';
     final groupName = data['groupName']?.toString() ?? 'Unknown';
-    final inviterName = data['inviterName']?.toString() ?? 'Someone';
+    // Backend gửi field 'invitedByMemberName'
+    final inviterName = data['invitedByMemberName']?.toString() ?? data['inviterName']?.toString() ?? 'Someone';
 
     showDialog(
       context: context,
@@ -315,7 +316,7 @@ class _SharePageState extends State<SharePage> {
             TextButton(
               onPressed: () {
                 Navigator.of(dialogContext).pop();
-                _rejectInvitation(invitationId);
+                _rejectInvitation(invitationId, groupName: groupName);
               },
               child: const Text('Từ chối', style: TextStyle(color: Colors.red)),
             ),
@@ -366,7 +367,7 @@ class _SharePageState extends State<SharePage> {
   }
 
   // Từ chối lời mời
-  void _rejectInvitation(String invitationId) {
+  void _rejectInvitation(String invitationId, {String? groupName}) {
     if (invitationId.isEmpty) return;
 
     ApiUtil.getInstance()!.post(
@@ -374,20 +375,90 @@ class _SharePageState extends State<SharePage> {
       body: {},
       onSuccess: (response) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Đã từ chối lời mời'),
-            backgroundColor: Colors.orange,
-          ),
-        );
         _fetchPendingInvitations();
+        _showRejectSuccessDialog(groupName);
       },
       onError: (error) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Lỗi: ${error.toString()}'),
-            backgroundColor: Colors.red,
+            content: Row(
+              children: [
+                const Icon(Icons.error_outline, color: Colors.white),
+                const SizedBox(width: 12),
+                Expanded(child: Text('Lỗi: ${error.toString()}')),
+              ],
+            ),
+            backgroundColor: Colors.red.shade600,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            margin: const EdgeInsets.all(16),
+          ),
+        );
+      },
+    );
+  }
+
+  // Dialog hiển thị khi từ chối lời mời thành công
+  void _showRejectSuccessDialog(String? groupName) {
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (BuildContext dialogContext) {
+        // Tự động đóng dialog sau 2 giây
+        Future.delayed(const Duration(seconds: 2), () {
+          if (dialogContext.mounted && Navigator.of(dialogContext).canPop()) {
+            Navigator.of(dialogContext).pop();
+          }
+        });
+
+        return Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Container(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Icon
+                Container(
+                  width: 70,
+                  height: 70,
+                  decoration: BoxDecoration(
+                    color: Colors.orange.shade50,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.cancel_outlined,
+                    color: Colors.orange.shade600,
+                    size: 40,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                // Tiêu đề
+                const Text(
+                  'Đã từ chối lời mời',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                // Nội dung
+                Text(
+                  groupName != null
+                      ? 'Bạn đã từ chối tham gia nhóm "$groupName"'
+                      : 'Lời mời đã được từ chối',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey.shade600,
+                  ),
+                ),
+              ],
+            ),
           ),
         );
       },
@@ -607,7 +678,11 @@ class _SharePageState extends State<SharePage> {
   Widget _buildInvitationItem(Map<String, dynamic> invitation) {
     final invitationId = invitation['id']?.toString() ?? invitation['invitationId']?.toString() ?? '';
     final groupName = invitation['groupName']?.toString() ?? invitation['group']?['name']?.toString() ?? 'Unknown';
-    final inviterName = invitation['inviterName']?.toString() ?? invitation['inviter']?['username']?.toString() ?? 'Someone';
+    // Backend gửi field 'invitedByMemberName'
+    final inviterName = invitation['invitedByMemberName']?.toString()
+        ?? invitation['inviterName']?.toString()
+        ?? invitation['inviter']?['username']?.toString()
+        ?? 'Someone';
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 10.0),
@@ -662,7 +737,7 @@ class _SharePageState extends State<SharePage> {
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
                 TextButton(
-                  onPressed: () => _rejectInvitation(invitationId),
+                  onPressed: () => _rejectInvitation(invitationId, groupName: groupName),
                   style: TextButton.styleFrom(
                     foregroundColor: Colors.red.shade600,
                   ),

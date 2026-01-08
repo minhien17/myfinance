@@ -308,7 +308,7 @@ Future<void> addExpense({
       "amount": amount,
       "category": category,
       "note": note,
-      "dateTime": dateTime.toIso8601String(),
+      "dateTime": dateTime.toUtc().toIso8601String(),
     },
     onSuccess: (response) {
       

@@ -170,11 +170,49 @@ class ApiEndpoint {
     return "$_directTransactionService/groups/$groupId/expenses/payment-history";
   }
 
+  // My expenses in group: GET /:groupId/expenses/my-expenses
+  static String groupExpenseMyExpenses(String groupId) {
+    if (useKongGateway) {
+      return "$_kongGroupExpenseService/$groupId/expenses/my-expenses";
+    }
+    return "$_directTransactionService/groups/$groupId/expenses/my-expenses";
+  }
+
   static String groupBalances(String groupId) {
     if (useKongGateway) {
       return "$_kongGroupExpenseService/$groupId/balances";
     }
     return "$_directTransactionService/groups/$groupId/balances";
+  }
+
+  // Upload payment proof: POST /:groupId/expenses/upload-proof
+  static String groupExpenseUploadProof(String groupId) {
+    if (useKongGateway) {
+      return "$_kongGroupExpenseService/$groupId/expenses/upload-proof";
+    }
+    return "$_directTransactionService/groups/$groupId/expenses/upload-proof";
+  }
+
+  // Get payment proof: GET /:groupId/expenses/shares/:shareId/proof
+  static String groupExpenseGetProof(String groupId, String shareId) {
+    if (useKongGateway) {
+      return "$_kongGroupExpenseService/$groupId/expenses/shares/$shareId/proof";
+    }
+    return "$_directTransactionService/groups/$groupId/expenses/shares/$shareId/proof";
+  }
+
+  /// Convert relative path (e.g. "/uploads/proofs/xxx.jpg") to full URL
+  /// Dùng để hiển thị ảnh từ server
+  static String getFullImageUrl(String? relativePath) {
+    if (relativePath == null || relativePath.isEmpty) {
+      return '';
+    }
+    // Nếu đã là full URL thì trả về nguyên
+    if (relativePath.startsWith('http://') || relativePath.startsWith('https://')) {
+      return relativePath;
+    }
+    // Ghép với transaction service URL (nơi lưu ảnh)
+    return "$_directTransactionService$relativePath";
   }
 
   // ============================================

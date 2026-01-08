@@ -11,9 +11,9 @@ import 'package:my_finance/models/member_model.dart';
 /// Màn hình 2: Chọn cách chia tiền với 3 tab
 class SplitExpensePage extends StatefulWidget {
   final Group group;
-  final double amount;
-  final String category;
-  final String note;
+  final String title;
+  final List<Map<String, dynamic>> transactions;
+  final double totalAmount;
   final DateTime date;
   final String paidByMemberId;
   final Member paidByMember;
@@ -23,9 +23,9 @@ class SplitExpensePage extends StatefulWidget {
   const SplitExpensePage({
     super.key,
     required this.group,
-    required this.amount,
-    required this.category,
-    required this.note,
+    required this.title,
+    required this.transactions,
+    required this.totalAmount,
     required this.date,
     required this.paidByMemberId,
     required this.paidByMember,
@@ -94,7 +94,7 @@ class _SplitExpensePageState extends State<SplitExpensePage>
   // ==================== TAB 1: CHIA ĐỀU ====================
   Widget _buildEqualSplitTab() {
     final perPerson = equalParticipantIds.isNotEmpty
-        ? widget.amount / equalParticipantIds.length
+        ? widget.totalAmount / equalParticipantIds.length
         : 0.0;
 
     return SingleChildScrollView(
@@ -117,7 +117,7 @@ class _SplitExpensePageState extends State<SplitExpensePage>
                   children: [
                     const Text('Tổng tiền', style: TextStyle(color: Colors.grey)),
                     Text(
-                      '${widget.amount.toStringAsFixed(0)}đ',
+                      '${widget.totalAmount.toStringAsFixed(0)}đ',
                       style: const TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
@@ -227,7 +227,7 @@ class _SplitExpensePageState extends State<SplitExpensePage>
   // ==================== TAB 2: CHIA CHÍNH XÁC ====================
   Widget _buildExactSplitTab() {
     final totalEntered = exactAmounts.values.fold(0.0, (sum, v) => sum + v);
-    final remaining = widget.amount - totalEntered;
+    final remaining = widget.totalAmount - totalEntered;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
@@ -249,7 +249,7 @@ class _SplitExpensePageState extends State<SplitExpensePage>
                   children: [
                     const Text('Tổng tiền', style: TextStyle(color: Colors.grey)),
                     Text(
-                      '${widget.amount.toStringAsFixed(0)}đ',
+                      '${widget.totalAmount.toStringAsFixed(0)}đ',
                       style: const TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
@@ -375,7 +375,7 @@ class _SplitExpensePageState extends State<SplitExpensePage>
                   children: [
                     const Text('Tổng tiền', style: TextStyle(color: Colors.grey)),
                     Text(
-                      '${widget.amount.toStringAsFixed(0)}đ',
+                      '${widget.totalAmount.toStringAsFixed(0)}đ',
                       style: const TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
@@ -423,7 +423,7 @@ class _SplitExpensePageState extends State<SplitExpensePage>
           ...widget.members.map((member) {
             final isPayer = member.id == widget.paidByMemberId;
             final percent = percentages[member.id] ?? 0;
-            final amountForMember = widget.amount * percent / 100;
+            final amountForMember = widget.totalAmount * percent / 100;
 
             return Container(
               margin: const EdgeInsets.only(bottom: 12),
@@ -534,7 +534,7 @@ class _SplitExpensePageState extends State<SplitExpensePage>
                       _buildInfoRow(
                         Icons.attach_money,
                         'Số tiền',
-                        '${widget.amount.toStringAsFixed(0)}đ',
+                        '${widget.totalAmount.toStringAsFixed(0)}đ',
                       ),
                       const SizedBox(height: 8),
                       _buildInfoRow(
@@ -544,9 +544,9 @@ class _SplitExpensePageState extends State<SplitExpensePage>
                       ),
                       const SizedBox(height: 8),
                       _buildInfoRow(
-                        Icons.category,
-                        'Danh mục',
-                        widget.category,
+                        Icons.receipt_long,
+                        'Số khoản',
+                        '${widget.transactions.length} khoản',
                       ),
                     ],
                   ),
@@ -750,7 +750,7 @@ class _SplitExpensePageState extends State<SplitExpensePage>
           return;
         }
         splitType = 'equal';
-        final perPerson = widget.amount / equalParticipantIds.length;
+        final perPerson = widget.totalAmount / equalParticipantIds.length;
         for (var memberId in equalParticipantIds) {
           final member = widget.members.firstWhere((m) => m.id == memberId);
           participants.add({
@@ -764,7 +764,7 @@ class _SplitExpensePageState extends State<SplitExpensePage>
 
       case 1: // Chia chính xác
         final totalEntered = exactAmounts.values.fold(0.0, (sum, v) => sum + v);
-        if ((totalEntered - widget.amount).abs() > 0.01) {
+        if ((totalEntered - widget.totalAmount).abs() > 0.01) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Tổng số tiền chưa khớp')),
           );
@@ -800,7 +800,7 @@ class _SplitExpensePageState extends State<SplitExpensePage>
               'memberId': entry.key.toString(),
               'userId': member.userId,
               'memberName': member.name,
-              'amount': widget.amount * entry.value / 100,
+              'amount': widget.totalAmount * entry.value / 100,
               'percent': entry.value,
             });
           }
@@ -832,35 +832,20 @@ class _SplitExpensePageState extends State<SplitExpensePage>
       return;
     }
 
+    // ========== API BODY MỚI ==========
     final Map<String, dynamic> body = {
-      'title': widget.note,
-      'note': widget.note,
-      'amount': widget.amount,
-      'category': widget.category,
-      'splitType': splitType,
+      'title': widget.title,
+      'transactions': widget.transactions,
       'paidByMemberId': paidByMemberIdStr,
       'paidByUserId': widget.paidByMember.userId,
       'paidByMemberName': widget.paidByMember.name,
-      'date': widget.date.toIso8601String(),
+      'splitType': splitType,
+      'participants': participants,
+      'date': widget.date.toUtc().toIso8601String(),
     };
-    // paidByMemberName thì có thể có 2 người hoặc hơn
-
-    // Gửi đúng tên trường theo splitType
-    switch (splitType) {
-      case 'equal':
-        body['participants'] = participants;
-        break;
-      case 'exact':
-        body['exactSplits'] = participants;
-        break;
-      case 'percent':
-        body['percentSplits'] = participants;
-        break;
-    }
 
     print('📤 Sending expense with splitType: $splitType');
     print('📤 Body: $body');
-    print('📤 Participants: $participants');
 
     ApiUtil.getInstance()!.post(
       url: ApiEndpoint.groupExpenses(widget.group.id),
@@ -917,19 +902,33 @@ class _SplitExpensePageState extends State<SplitExpensePage>
       ),
       body: Column(
         children: [
-          // Thông tin người trả
+          // Thông tin tổng quan
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(12),
             color: Colors.grey[100],
-            child: Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(BootstrapIcons.person_check, color: Colors.green),
-                const SizedBox(width: 8),
-                Text(
-                  '${_getDisplayName(widget.paidByMember)} đã trả ${widget.amount.toStringAsFixed(0)}đ',
-                  style: const TextStyle(fontWeight: FontWeight.w500),
+                Row(
+                  children: [
+                    const Icon(BootstrapIcons.person_check, color: Colors.green),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        '${_getDisplayName(widget.paidByMember)} đã trả ${widget.totalAmount.toStringAsFixed(0)}đ',
+                        style: const TextStyle(fontWeight: FontWeight.w500),
+                      ),
+                    ),
+                  ],
                 ),
+                if (widget.transactions.length > 1) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    '${widget.transactions.length} khoản chi tiêu',
+                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                  ),
+                ],
               ],
             ),
           ),

@@ -110,6 +110,10 @@ List<ItemIcon> ListIcon = [
       img: const Icon(Icons.flight, size: 30, color: Colors.teal),
       title: 'travel',
       description: "Du lịch"),
+  ItemIcon(
+      img: const Icon(Icons.groups, size: 30, color: Colors.indigo),
+      title: 'group settlement',
+      description: "Nhóm"),
 ];
 
 // trả về description theo title, nếu không tìm thấy thì trả về "Chi phí khác"
@@ -207,14 +211,6 @@ List<ItemIcon> ListIconGroup = [
       img: const Icon(Icons.flight, size: 30, color: Colors.teal),
       title: 'travel',
       description: "Du lịch"),
-  ItemIcon(
-      img: Image.asset(
-        'assets/icons/education.png',
-        height: 30,
-        width: 30,
-      ),
-      title: 'education',
-      description: "Giáo dục"),
   ItemIcon(
       img: Image.asset(
         'assets/icons/family.png',

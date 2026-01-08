@@ -1,7 +1,9 @@
 import 'dart:async';  // For Timer (debounce)
+import 'dart:io';
 
 import 'package:bootstrap_icons/bootstrap_icons.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:my_finance/api/api_end_point.dart';
 import 'package:my_finance/api/api_util.dart';
 import 'package:my_finance/common/flutter_toast.dart';
@@ -10,6 +12,7 @@ import 'package:my_finance/models/debt_model.dart';
 import 'package:my_finance/models/list_icon.dart';
 import 'package:my_finance/models/transaction_model.dart';
 import 'package:my_finance/models/payment_history_model.dart';
+import 'package:my_finance/models/my_expense_model.dart';
 import 'package:my_finance/pages/share/child_page/add_group_expense_page.dart';
 import 'package:my_finance/pages/share/child_page/edit_transation_group_page.dart';
 import 'package:my_finance/pages/share/child_page/view_report_page.dart';
@@ -38,6 +41,8 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
   List<String> months = [];
   List<TransactionModel> lists = [];
   List<PaymentItem> paymentsList = []; // Danh sách payment từ payment-history API
+  List<MyExpenseModel> myExpensesList = []; // Danh sách expenses từ my-expenses API
+  MyExpensesSummary? myExpensesSummary; // Tổng kết từ my-expenses API
   bool _loading = true;
 
   List<DebtModel> myDebts = [];
@@ -49,6 +54,7 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
   PaymentSummary? paymentSummary; // Tổng kết từ payment-history API
   String owner = '';
   String currentUserId = ''; // 🔥 userId của người đang đăng nhập
+  String currentMemberId = ''; // 🔥 memberId của user trong group này
 
   List<Member> groupMembers = []; // Lưu danh sách members để hiển thị tên trong phần nợ
 
@@ -66,60 +72,114 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
   // 🔌 WebSocket service
   final WebSocketService _wsService = WebSocketService();
 
+  // 📷 Image picker cho upload ảnh chứng minh
+  final ImagePicker _imagePicker = ImagePicker();
+
   void reLoadPage(){
     getListMonth();
     getListTransaction(selectedMonth);
-    fetchDebts(selectedMonth);
+    // 🔥 Không cần gọi fetchDebts riêng vì mapExpensesToDebts()
+    // đã được gọi trong getListTransaction sau khi có data
+  }
+
+  /// 🔥 Map từ myExpensesList sang myDebts và owedToMe
+  /// - myDebts: User nợ người khác (người khác trả, user có share chưa thanh toán)
+  /// - owedToMe: Người khác nợ user (user trả, người khác có share chưa thanh toán)
+  void mapExpensesToDebts() {
+    List<DebtModel> newMyDebts = [];
+    List<DebtModel> newOwedToMe = [];
+
+    print("🔍 mapExpensesToDebts - currentMemberId: $currentMemberId");
+    print("🔍 myExpensesList count: ${myExpensesList.length}");
+
+    // Nếu chưa có currentMemberId, không thể map
+    if (currentMemberId.isEmpty) {
+      print("⚠️ currentMemberId chưa được load, bỏ qua mapping");
+      return;
+    }
+
+    for (var expense in myExpensesList) {
+      // 🔥 Debug: In ra tất cả shares của expense
+      print("📋 Expense: ${expense.title}");
+      print("   paidByMemberId: ${expense.paidByMemberId}");
+      print("   shares count: ${expense.shares.length}");
+      for (var share in expense.shares) {
+        print("   - Share: memberId=${share.memberId}, memberName=${share.memberName}, amount=${share.amount}, isPaid=${share.isPaid}");
+      }
+
+      // 🔥 Tìm share của user hiện tại bằng currentMemberId
+      ExpenseShare? myShare;
+      try {
+        myShare = expense.shares.firstWhere(
+          (s) => s.memberId == currentMemberId,
+        );
+      } catch (e) {
+        myShare = null;
+      }
+
+      // 🔥 Xác định user có phải người trả không
+      final bool isPayer = expense.paidByMemberId == currentMemberId;
+
+      print("   myShare found: ${myShare != null}, isPayer: $isPayer");
+
+      if (isPayer) {
+        // User là người trả -> tìm những người khác chưa thanh toán (owedToMe)
+        for (var share in expense.shares) {
+          // Bỏ qua share của chính user
+          if (share.memberId == currentMemberId) continue;
+          // Chỉ lấy những share chưa thanh toán
+          if (!share.isPaid) {
+            print("  ➕ owedToMe: ${share.memberName} owes ${share.amount}");
+            newOwedToMe.add(DebtModel(
+              shareId: share.id,
+              expenseId: expense.id,
+              expenseTitle: expense.title.isNotEmpty ? expense.title : 'Chi tiêu nhóm',
+              totalAmount: expense.totalAmount,
+              shareAmount: share.amount,
+              debtorMemberId: share.memberId,
+              debtorName: share.memberName,
+              isPaid: share.isPaid,
+              createdAt: expense.createdAt,
+              // 📷 Copy proof fields
+              proofImageUrl: share.proofImageUrl,
+              proofStatus: share.proofStatus,
+              proofUploadedAt: share.proofUploadedAt,
+            ));
+          }
+        }
+      } else if (myShare != null && !myShare.isPaid) {
+        // User không phải người trả VÀ user có share chưa thanh toán -> myDebts
+        print("  ➕ myDebts: I owe ${expense.paidByMemberName} ${myShare.amount}");
+        newMyDebts.add(DebtModel(
+          shareId: myShare.id,
+          expenseId: expense.id,
+          expenseTitle: expense.title.isNotEmpty ? expense.title : 'Chi tiêu nhóm',
+          totalAmount: expense.totalAmount,
+          shareAmount: myShare.amount,
+          paidByMemberId: expense.paidByMemberId,
+          paidByName: expense.paidByMemberName,
+          isPaid: myShare.isPaid,
+          createdAt: expense.createdAt,
+          // 📷 Copy proof fields
+          proofImageUrl: myShare.proofImageUrl,
+          proofStatus: myShare.proofStatus,
+          proofUploadedAt: myShare.proofUploadedAt,
+        ));
+      }
+    }
+
+    print("✅ Result - myDebts: ${newMyDebts.length}, owedToMe: ${newOwedToMe.length}");
+
+    setState(() {
+      myDebts = newMyDebts;
+      owedToMe = newOwedToMe;
+    });
   }
 
   Future<void> fetchDebts(String monthYear) async {
-    // Parse monthYear format "MM/YYYY" to get month and year
-    final parts = monthYear.split('/');
-    if (parts.length != 2) return;
-
-    final month = int.tryParse(parts[0]);
-    final year = int.tryParse(parts[1]);
-    if (month == null || year == null) return;
-
-    // GET /groups/{groupId}/expenses/my-debts
-    ApiUtil.getInstance()!.get(
-      url: ApiEndpoint.groupExpenseMyDebts(widget.group.id),
-      onSuccess: (response) {
-        final List<dynamic> data = response.data;
-        final allDebts = data.map((e) => DebtModel.fromJson(e)).toList();
-
-        // Filter by selected month
-        final filteredDebts = allDebts.where((debt) {
-          if (debt.createdAt == null) return false;
-          return debt.createdAt!.month == month && debt.createdAt!.year == year;
-        }).toList();
-
-        setState(() {
-          myDebts = filteredDebts;
-        });
-      },
-      onError: (err) => print("Fetch debts error: $err"),
-    );
-
-    // GET /groups/{groupId}/expenses/owed-to-me
-    ApiUtil.getInstance()!.get(
-      url: ApiEndpoint.groupExpenseOwedToMe(widget.group.id),
-      onSuccess: (response) {
-        final List<dynamic> data = response.data;
-        final allOwed = data.map((e) => DebtModel.fromJson(e)).toList();
-
-        // Filter by selected month
-        final filteredOwed = allOwed.where((debt) {
-          if (debt.createdAt == null) return false;
-          return debt.createdAt!.month == month && debt.createdAt!.year == year;
-        }).toList();
-
-        setState(() {
-          owedToMe = filteredOwed;
-        });
-      },
-      onError: (err) => print("Fetch owed error: $err"),
-    );
+    // 🔥 Sử dụng dữ liệu từ myExpensesList thay vì gọi API riêng
+    // Hàm này được gọi sau khi getListTransaction hoàn thành
+    mapExpensesToDebts();
   }
 
   void navigateToAddTransaction() {
@@ -347,7 +407,39 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
       setState(() {
         currentUserId = userId;
       });
+      // 🔥 Sau khi có userId, gọi API lấy memberId của user trong group này
+      _loadCurrentMemberId();
     }
+  }
+
+  /// 🔥 Gọi API lấy memberId của user trong group này
+  void _loadCurrentMemberId() {
+    ApiUtil.getInstance()!.get(
+      url: ApiEndpoint.groupMyMemberId(widget.group.id),
+      onSuccess: (response) {
+        if (!mounted) return;
+        // Response có thể là: { "memberId": "123" } hoặc trực tiếp "123"
+        String? memberId;
+        if (response.data is Map) {
+          memberId = response.data['memberId']?.toString();
+        } else {
+          memberId = response.data?.toString();
+        }
+        if (memberId != null) {
+          setState(() {
+            currentMemberId = memberId!;
+          });
+          print("🔥 currentMemberId loaded: $currentMemberId");
+          // Sau khi có memberId, map lại debts nếu đã có data
+          if (myExpensesList.isNotEmpty) {
+            mapExpensesToDebts();
+          }
+        }
+      },
+      onError: (error) {
+        print("❌ Error loading currentMemberId: $error");
+      },
+    );
   }
 
   void initGroupMembers() {
@@ -863,7 +955,623 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
     }
   }
 
-  // 🔥 Hàm hiển thị payment history theo ngày
+  // 🔥 Model cho payment event (đã trả hoặc đã nhận)
+  // ignore: unused_element
+
+
+  // 🔥 Hàm hiển thị my expenses theo ngày (bao gồm cả "đã trả" và "đã nhận")
+  List<Widget> buildMyExpensesList(List<MyExpenseModel> expenses, BuildContext context) {
+    if (expenses.isEmpty) {
+      return [
+        Container(
+          padding: const EdgeInsets.all(40),
+          child: Column(
+            children: [
+              Icon(Icons.receipt_long, size: 60, color: Colors.grey.shade300),
+              const SizedBox(height: 16),
+              Text(
+                'Chưa có chi tiêu nào trong tháng này',
+                style: TextStyle(color: Colors.grey.shade500, fontSize: 16),
+              ),
+            ],
+          ),
+        ),
+      ];
+    }
+
+    // 🔥 Tạo danh sách payment events từ expenses
+    // Mỗi expense có thể tạo ra nhiều events:
+    // 1. "Đã trả" - khi user là người trả (paidByMemberId == currentMemberId)
+    // 2. "Đã nhận" - khi user là người trả và có người khác đã thanh toán (share.isPaid && share.paidAt)
+    // 3. "Nợ" - khi user không phải người trả
+    List<Map<String, dynamic>> allEvents = [];
+
+    for (var expense in expenses) {
+      final bool isPayer = expense.paidByMemberId == currentMemberId;
+      final String category = expense.mainCategory;
+
+      if (isPayer) {
+        // User là người trả → thêm event "Đã trả"
+        allEvents.add({
+          'type': 'paid', // Đã trả
+          'date': expense.createdAt,
+          'amount': expense.totalAmount,
+          'title': expense.title.isNotEmpty ? expense.title : titleOf(category),
+          'category': category,
+          'expense': expense,
+          'description': 'Bạn đã trả',
+        });
+
+        // Tìm những người đã thanh toán cho user → thêm event "Đã nhận"
+        for (var share in expense.shares) {
+          // Bỏ qua share của chính user
+          if (share.memberId == currentMemberId) continue;
+          // Chỉ lấy những share đã thanh toán
+          if (share.isPaid && share.paidAt != null) {
+            allEvents.add({
+              'type': 'received', // Đã nhận
+              'date': share.paidAt!,
+              'amount': share.amount,
+              'title': expense.title.isNotEmpty ? expense.title : titleOf(category),
+              'category': category,
+              'expense': expense,
+              'fromName': share.memberName,
+              'description': 'Nhận từ ${share.memberName}',
+            });
+          }
+        }
+      } else {
+        // User không phải người trả → thêm event "Nợ" hoặc "Đã thanh toán"
+        try {
+          final myShare = expense.shares.firstWhere((s) => s.memberId == currentMemberId);
+          allEvents.add({
+            'type': myShare.isPaid ? 'paid_debt' : 'owed', // Đã trả nợ hoặc Nợ
+            'date': myShare.isPaid && myShare.paidAt != null ? myShare.paidAt! : expense.createdAt,
+            'amount': myShare.amount,
+            'title': expense.title.isNotEmpty ? expense.title : titleOf(category),
+            'category': category,
+            'expense': expense,
+            'toName': expense.paidByMemberName,
+            'description': myShare.isPaid
+                ? 'Đã trả cho ${expense.paidByMemberName}'
+                : '${expense.paidByMemberName} đã trả cho bạn',
+            'isPaid': myShare.isPaid,
+          });
+        } catch (e) {
+          // User không có trong shares
+        }
+      }
+    }
+
+    // Sắp xếp theo ngày mới nhất
+    allEvents.sort((a, b) => (b['date'] as DateTime).compareTo(a['date'] as DateTime));
+
+    // 1️⃣ Gom nhóm theo ngày (YYYY-MM-DD)
+    Map<String, List<Map<String, dynamic>>> grouped = {};
+    for (var event in allEvents) {
+      String dateKey = (event['date'] as DateTime).toIso8601String().split('T')[0];
+      grouped.putIfAbsent(dateKey, () => []);
+      grouped[dateKey]!.add(event);
+    }
+
+    // Sắp xếp theo ngày mới nhất
+    var sortedKeys = grouped.keys.toList()..sort((a, b) => b.compareTo(a));
+
+    // 2️⃣ Tạo danh sách Widget cho từng nhóm
+    List<Widget> containers = sortedKeys.map((dateKey) {
+      List<Map<String, dynamic>> dailyEvents = grouped[dateKey]!;
+
+      // Chuyển dateKey -> DateTime để hiển thị
+      DateTime date = DateTime.parse(dateKey);
+
+      // ✅ Tính tổng tiền trong ngày
+      double dailyIn = 0; // Tiền vào (nhận từ người khác trả nợ)
+      double dailyOut = 0; // Tiền ra (bạn chi trả + bạn trả nợ)
+      for (var event in dailyEvents) {
+        final type = event['type'] as String;
+        final amount = event['amount'] as double;
+        if (type == 'received') {
+          // Nhận tiền từ người khác trả nợ → tiền VÀO
+          dailyIn += amount;
+        } else if (type == 'paid' || type == 'paid_debt') {
+          // Bạn chi trả cho nhóm hoặc trả nợ người khác → tiền RA
+          dailyOut += amount;
+        }
+        // 'owed' không tính vì chưa chi thực tế, chỉ là khoản nợ
+      }
+      double netAmount = dailyIn - dailyOut;
+      final bool isPositive = netAmount >= 0;
+
+      return Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 15),
+        decoration: BoxDecoration(
+          color: Colors.grey[100],
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // 🧾 Header ngày + tổng tiền
+            Row(
+              children: [
+                Text(
+                  "${date.day}/${date.month}/${date.year}",
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  '${isPositive ? '+' : ''}${Common.formatNumber(netAmount.toString())}',
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: isPositive ? Colors.green : Colors.red,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(width: 5),
+              ],
+            ),
+
+            const SizedBox(height: 10),
+
+            // 3️⃣ Danh sách events trong ngày đó
+            ...dailyEvents.map((event) {
+              final type = event['type'] as String;
+              final amount = event['amount'] as double;
+              final title = event['title'] as String;
+              final category = event['category'] as String;
+              final description = event['description'] as String;
+
+              // Xác định màu và icon dựa trên type
+              Color amountColor;
+              IconData iconData;
+              String prefix;
+
+              switch (type) {
+                case 'paid': // Bạn đã trả
+                  amountColor = Colors.red;
+                  iconData = Icons.arrow_upward;
+                  prefix = '-';
+                  break;
+                case 'received': // Đã nhận từ người khác
+                  amountColor = Colors.green;
+                  iconData = Icons.arrow_downward;
+                  prefix = '+';
+                  break;
+                case 'paid_debt': // Đã trả nợ cho người khác
+                  amountColor = Colors.red;
+                  iconData = Icons.arrow_upward;
+                  prefix = '-';
+                  break;
+                case 'owed': // Nợ người khác
+                default:
+                  amountColor = Colors.orange;
+                  iconData = Icons.schedule;
+                  prefix = '-';
+                  break;
+              }
+
+              // 🔥 Lấy expense để hiển thị chi tiết khi click
+              final expense = event['expense'] as MyExpenseModel;
+
+              return InkWell(
+                onTap: () => _showExpenseDetailBottomSheet(expense),
+                borderRadius: BorderRadius.circular(10),
+                child: Container(
+                  margin: const EdgeInsets.only(bottom: 10),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(10),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Colors.black12,
+                        offset: Offset(0, 2),
+                        blurRadius: 4,
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    children: [
+                      itemLeading(category),
+                      const SizedBox(width: 15),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Tiêu đề expense
+                            Text(
+                              title,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 15,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 4),
+                            // Mô tả event
+                            Row(
+                              children: [
+                                Icon(
+                                  iconData,
+                                  size: 14,
+                                  color: amountColor,
+                                ),
+                                const SizedBox(width: 4),
+                                Expanded(
+                                  child: Text(
+                                    description,
+                                    style: TextStyle(
+                                      color: Colors.grey.shade600,
+                                      fontSize: 13,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            // Hiển thị trạng thái nếu là khoản nợ
+                            if (type == 'owed')
+                              Padding(
+                                padding: const EdgeInsets.only(top: 2),
+                                child: Text(
+                                  '⏳ Chưa thanh toán',
+                                  style: TextStyle(
+                                    color: Colors.orange,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      // Số tiền
+                      Text(
+                        '$prefix${Common.formatNumber(amount.toString())}',
+                        style: TextStyle(
+                          color: amountColor,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      // Icon mũi tên để biết có thể click
+                      const SizedBox(width: 8),
+                      Icon(Icons.chevron_right, color: Colors.grey.shade400, size: 20),
+                    ],
+                  ),
+                ),
+              );
+            }),
+          ],
+        ),
+      );
+    }).toList();
+
+    return containers;
+  }
+
+  // 🔥 Hiển thị chi tiết expense trong bottom sheet
+  void _showExpenseDetailBottomSheet(MyExpenseModel expense) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        final bool isPayer = expense.paidByMemberId == currentMemberId;
+        final category = expense.mainCategory;
+
+        return DraggableScrollableSheet(
+          initialChildSize: 0.7,
+          minChildSize: 0.5,
+          maxChildSize: 0.95,
+          expand: false,
+          builder: (context, scrollController) {
+            return Container(
+              padding: const EdgeInsets.all(20),
+              child: ListView(
+                controller: scrollController,
+                children: [
+                  // Header với icon category
+                  Center(
+                    child: Container(
+                      width: 60,
+                      height: 60,
+                      decoration: BoxDecoration(
+                        color: AppColors.green.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(30),
+                      ),
+                      child: Center(child: itemLeading(category)),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Tiêu đề expense
+                  Center(
+                    child: Text(
+                      expense.title.isNotEmpty ? expense.title : titleOf(category),
+                      style: const TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+
+                  // Tổng số tiền
+                  Center(
+                    child: Text(
+                      Common.formatNumber(expense.totalAmount.toString()),
+                      style: TextStyle(
+                        fontSize: 32,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.green,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+
+                  // Ngày tạo và người trả
+                  Center(
+                    child: Text(
+                      '${expense.createdAt.day}/${expense.createdAt.month}/${expense.createdAt.year}',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Center(
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.person, size: 16, color: Colors.grey.shade600),
+                        const SizedBox(width: 4),
+                        Text(
+                          isPayer ? 'Bạn đã trả' : 'Được trả bởi ${expense.paidByMemberName}',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 24),
+                  const Divider(),
+
+                  // Danh sách transactions (chi tiết chi tiêu)
+                  if (expense.transactions.isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Chi tiết chi tiêu',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    ...expense.transactions.map((tx) {
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade100,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Row(
+                          children: [
+                            itemLeading(tx.category),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    tx.note.isNotEmpty ? tx.note : titleOf(tx.category),
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w500,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                  Text(
+                                    titleOf(tx.category),
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.grey.shade600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Text(
+                              Common.formatNumber(tx.amount.toString()),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }),
+                  ],
+
+                  // Danh sách shares (phần chia)
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Phần chia',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  ...expense.shares.map((share) {
+                    final bool isCurrentUser = share.memberId == currentMemberId;
+                    final bool isSharePayer = share.memberId == expense.paidByMemberId;
+
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: isCurrentUser
+                            ? AppColors.green.withOpacity(0.1)
+                            : Colors.grey.shade100,
+                        borderRadius: BorderRadius.circular(10),
+                        border: isCurrentUser
+                            ? Border.all(color: AppColors.green.withOpacity(0.3))
+                            : null,
+                      ),
+                      child: Row(
+                        children: [
+                          // Avatar
+                          CircleAvatar(
+                            radius: 18,
+                            backgroundColor: isCurrentUser
+                                ? AppColors.green
+                                : Colors.grey.shade400,
+                            child: Text(
+                              share.memberName.isNotEmpty
+                                  ? share.memberName[0].toUpperCase()
+                                  : '?',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          // Tên thành viên
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Text(
+                                      isCurrentUser ? 'Bạn' : share.memberName,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w500,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                    if (isSharePayer) ...[
+                                      const SizedBox(width: 6),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 6,
+                                          vertical: 2,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: Colors.blue.shade100,
+                                          borderRadius: BorderRadius.circular(4),
+                                        ),
+                                        child: Text(
+                                          'Đã trả',
+                                          style: TextStyle(
+                                            fontSize: 10,
+                                            color: Colors.blue.shade700,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                                // Trạng thái thanh toán
+                                if (!isSharePayer) ...[
+                                  const SizedBox(height: 2),
+                                  Row(
+                                    children: [
+                                      Icon(
+                                        share.isPaid
+                                            ? Icons.check_circle
+                                            : Icons.schedule,
+                                        size: 14,
+                                        color: share.isPaid
+                                            ? Colors.green
+                                            : Colors.orange,
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        share.isPaid
+                                            ? 'Đã thanh toán'
+                                            : 'Chưa thanh toán',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: share.isPaid
+                                              ? Colors.green
+                                              : Colors.orange,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                          // Số tiền phần chia
+                          Text(
+                            Common.formatNumber(share.amount.toString()),
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                              color: share.isPaid || isSharePayer
+                                  ? Colors.black
+                                  : Colors.orange,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }),
+
+                  // Nút đóng
+                  const SizedBox(height: 24),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.pop(context),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.green,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      child: const Text(
+                        'Đóng',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  // 🔥 Hàm hiển thị payment history theo ngày (giữ lại cho backward compatibility)
   List<Widget> buildPaymentHistoryList(List<PaymentItem> payments, BuildContext context) {
     // 1️⃣ Gom nhóm theo ngày (YYYY-MM-DD)
     Map<String, List<PaymentItem>> grouped = {};
@@ -1119,8 +1827,8 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
                         _scrollToSelected();
 
                         // 🔸 Gọi API khi đổi tháng
+                        // mapExpensesToDebts() đã được gọi trong getListTransaction
                         getListTransaction(selectedMonth);
-                        fetchDebts(selectedMonth);
                       },
                       child: Container(
                         width: width / 3,
@@ -1256,7 +1964,7 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
                 child: _loading
                   ? const Center(child: CircularProgressIndicator())
                   : (currentTab == 0
-                      ? Column(children: [...buildPaymentHistoryList(paymentsList, context)])
+                      ? Column(children: [...buildMyExpensesList(myExpensesList, context)])
                       : _buildDebtList()),
               ),
             ]),
@@ -1372,36 +2080,57 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
       _loading = true;
     });
 
-    // 🔥 Gọi API payment-history mới
+    // 🔥 Gọi API my-expenses mới
     ApiUtil.getInstance()!.get(
-      url: ApiEndpoint.groupExpensePaymentHistory(widget.group.id),
+      url: ApiEndpoint.groupExpenseMyExpenses(widget.group.id),
       params: {
         "monthYear": nameOfMonth, // Format: "MM/YYYY"
       },
       onSuccess: (response) {
         if (!mounted) return;
 
-        print("✅ Payment history response: ${response.data}");
+        print("✅ My expenses response: ${response.data}");
 
-        final paymentHistory = PaymentHistoryModel.fromJson(response.data);
+        // Parse response - có thể là array trực tiếp hoặc object có expenses[]
+        List<MyExpenseModel> expenses = [];
+        MyExpensesSummary? summary;
 
-        // Debug: Print each payment's to/from fields
-        for (var payment in paymentHistory.payments) {
-          print('🔍 Payment: type=${payment.type}, to="${payment.to}", from="${payment.from}", toMemberId=${payment.toMemberId}, fromMemberId=${payment.fromMemberId}');
+        if (response.data is List) {
+          // Response là array trực tiếp
+          expenses = (response.data as List)
+              .map((e) => MyExpenseModel.fromJson(e))
+              .toList();
+        } else if (response.data is Map) {
+          // Response là object có expenses[] và summary
+          final data = response.data as Map<String, dynamic>;
+          if (data['expenses'] != null) {
+            expenses = (data['expenses'] as List)
+                .map((e) => MyExpenseModel.fromJson(e))
+                .toList();
+          }
+          if (data['summary'] != null) {
+            summary = MyExpensesSummary.fromJson(data['summary']);
+          }
         }
 
+        // Sắp xếp theo ngày mới nhất
+        expenses.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
         setState(() {
-          paymentsList = paymentHistory.payments;
-          paymentSummary = paymentHistory.summary;
+          myExpensesList = expenses;
+          myExpensesSummary = summary;
           _loading = false;
 
-          // Cập nhật tổng chi tiêu từ summary
-          _totalExpense = paymentHistory.summary.totalPaid;
-          _myExpense = paymentHistory.summary.totalPaid; // Hoặc có thể lấy từ net
+          // Cập nhật tổng chi tiêu
+          _totalExpense = expenses.fold(0, (sum, e) => sum + e.totalAmount);
+          _myExpense = summary?.totalOwed ?? 0;
         });
+
+        // 🔥 Map expenses sang debts cho tab "Còn lại"
+        mapExpensesToDebts();
       },
       onError: (error) {
-        print("❌ Lỗi khi gọi payment-history API: $error");
+        print("❌ Lỗi khi gọi my-expenses API: $error");
         if (mounted) setState(() => _loading = false);
       },
     );
@@ -1465,7 +2194,7 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
       child: Column(
         children: [
           Text(
-            netBalance >= 0 ? 'Bạn được nhận lại' : 'Bạn cần trả',
+            netBalance >= 0 ? 'Bạn sẽ được nhận lại' : 'Bạn cần trả',
             style: const TextStyle(
               color: Colors.white70,
               fontSize: 14,
@@ -1782,7 +2511,9 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
     }
 
     return InkWell(
-      onTap: isOwedToMe ? () => _showConfirmPaymentSheet(debt, memberName) : null,
+      onTap: isOwedToMe
+          ? () => _showConfirmPaymentSheet(debt, memberName)
+          : () => _showUploadProofSheet(debt, memberName),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
@@ -1792,19 +2523,42 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
         ),
         child: Row(
           children: [
-            // Avatar
-            CircleAvatar(
-              radius: 20,
-              backgroundColor: isOwedToMe
-                  ? Colors.green.shade50
-                  : Colors.red.shade50,
-              child: Text(
-                memberName.isNotEmpty ? memberName[0].toUpperCase() : '?',
-                style: TextStyle(
-                  color: isOwedToMe ? Colors.green : Colors.red,
-                  fontWeight: FontWeight.bold,
+            // Avatar với badge ảnh chứng minh
+            Stack(
+              children: [
+                CircleAvatar(
+                  radius: 20,
+                  backgroundColor: isOwedToMe
+                      ? Colors.green.shade50
+                      : Colors.red.shade50,
+                  child: Text(
+                    memberName.isNotEmpty ? memberName[0].toUpperCase() : '?',
+                    style: TextStyle(
+                      color: isOwedToMe ? Colors.green : Colors.red,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ),
-              ),
+                // Badge ảnh chứng minh
+                if (debt.hasProof)
+                  Positioned(
+                    right: 0,
+                    bottom: 0,
+                    child: Container(
+                      padding: const EdgeInsets.all(2),
+                      decoration: BoxDecoration(
+                        color: debt.isProofPending ? Colors.amber : Colors.green,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 1.5),
+                      ),
+                      child: Icon(
+                        debt.isProofPending ? Icons.hourglass_empty : Icons.check,
+                        size: 10,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+              ],
             ),
             const SizedBox(width: 12),
             // Info
@@ -1835,6 +2589,29 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
                         color: Colors.grey[400],
                       ),
                     ),
+                  // Hiển thị trạng thái ảnh chứng minh
+                  if (debt.hasProof)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.image,
+                            size: 12,
+                            color: debt.isProofPending ? Colors.amber.shade700 : Colors.green,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            debt.isProofPending ? 'Có ảnh - Chờ xác nhận' : 'Đã xác nhận',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: debt.isProofPending ? Colors.amber.shade700 : Colors.green,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -1855,16 +2632,46 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
                     margin: const EdgeInsets.only(top: 4),
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
-                      color: Colors.green.shade50,
+                      color: debt.hasProof ? Colors.amber.shade50 : Colors.green.shade50,
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: const Text(
-                      'Nhấn để xác nhận',
+                    child: Text(
+                      debt.hasProof ? 'Xem ảnh & xác nhận' : 'Nhấn để xác nhận',
                       style: TextStyle(
                         fontSize: 10,
-                        color: Colors.green,
+                        color: debt.hasProof ? Colors.amber.shade700 : Colors.green,
                         fontWeight: FontWeight.w500,
                       ),
+                    ),
+                  ),
+                if (!isOwedToMe)
+                  Container(
+                    margin: const EdgeInsets.only(top: 4),
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: debt.hasProof ? Colors.amber.shade50 : Colors.orange.shade50,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          debt.hasProof ? Icons.hourglass_empty : Icons.camera_alt,
+                          size: 12,
+                          color: debt.hasProof ? Colors.amber.shade700 : Colors.orange,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          debt.hasProof
+                              ? (debt.isProofPending ? 'Đang chờ' : 'Đã xác nhận')
+                              : 'Gửi ảnh',
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: debt.hasProof ? Colors.amber.shade700 : Colors.orange,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
               ],
@@ -1929,6 +2736,7 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
               body: {
                 "invitedUserId": inviteeUserId,
                 "suggestedMemberName": suggestedName,
+                "invitedByMemberName": widget.group.memberName ?? "Thành viên",
               },
               onSuccess: (response) {
                 hideLoading();
@@ -2216,6 +3024,81 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
                 ],
               ),
             ),
+
+            // Hiển thị ảnh chứng minh nếu có
+            if (debt.hasProof) ...[
+              const SizedBox(height: 20),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.amber.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.amber.shade200),
+                ),
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.image, color: Colors.amber.shade700),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Ảnh chứng minh thanh toán',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.amber.shade700,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    // Preview ảnh
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Image.network(
+                        ApiEndpoint.getFullImageUrl(debt.proofImageUrl),
+                        height: 150,
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                        loadingBuilder: (context, child, loadingProgress) {
+                          if (loadingProgress == null) return child;
+                          return Container(
+                            height: 150,
+                            alignment: Alignment.center,
+                            child: const CircularProgressIndicator(),
+                          );
+                        },
+                        errorBuilder: (context, error, stackTrace) {
+                          return Container(
+                            height: 150,
+                            alignment: Alignment.center,
+                            color: Colors.grey.shade200,
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.broken_image, color: Colors.grey.shade400),
+                                const SizedBox(height: 4),
+                                Text('Không thể tải ảnh', style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    // Nút xem full
+                    TextButton.icon(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        _showProofImageDialog(ApiEndpoint.getFullImageUrl(debt.proofImageUrl));
+                      },
+                      icon: const Icon(Icons.fullscreen, size: 18),
+                      label: const Text('Xem toàn màn hình'),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+
             const SizedBox(height: 28),
 
             // Buttons
@@ -2273,6 +3156,452 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
               ],
             ),
             const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // 📷 Dialog chọn nguồn ảnh (camera hoặc thư viện)
+  Future<ImageSource?> _showImageSourceDialog() async {
+    return showModalBottomSheet<ImageSource>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.only(
+            topLeft: Radius.circular(20),
+            topRight: Radius.circular(20),
+          ),
+        ),
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Chọn ảnh chứng minh',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 20),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                // Camera
+                InkWell(
+                  onTap: () => Navigator.pop(context, ImageSource.camera),
+                  child: Column(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.shade50,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          Icons.camera_alt,
+                          size: 32,
+                          color: Colors.blue.shade600,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      const Text('Chụp ảnh'),
+                    ],
+                  ),
+                ),
+                // Gallery
+                InkWell(
+                  onTap: () => Navigator.pop(context, ImageSource.gallery),
+                  child: Column(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.green.shade50,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          Icons.photo_library,
+                          size: 32,
+                          color: Colors.green.shade600,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      const Text('Thư viện'),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Hủy'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // 📷 Chọn và upload ảnh chứng minh thanh toán
+  Future<void> _pickAndUploadProof(DebtModel debt) async {
+    // 1. Hiện dialog chọn nguồn ảnh
+    final source = await _showImageSourceDialog();
+    if (source == null) return;
+
+    // 2. Chọn ảnh
+    final XFile? image = await _imagePicker.pickImage(
+      source: source,
+      maxWidth: 1200,
+      maxHeight: 1200,
+      imageQuality: 85,
+    );
+    if (image == null) return;
+
+    // 3. Upload ảnh
+    showLoading(context);
+    ApiUtil.getInstance()!.postMultipart(
+      url: ApiEndpoint.groupExpenseUploadProof(widget.group.id),
+      fields: {'shareId': debt.shareId},
+      imageFile: File(image.path),
+      onSuccess: (response) {
+        hideLoading();
+        toastInfo(msg: 'Đã upload ảnh chứng minh thanh toán', bgColor: Colors.green);
+        reLoadPage();
+      },
+      onError: (err) {
+        hideLoading();
+        toastInfo(msg: 'Lỗi upload: $err', bgColor: Colors.red);
+      },
+    );
+  }
+
+  // 📷 Bottom sheet cho người nợ - upload ảnh chứng minh
+  void _showUploadProofSheet(DebtModel debt, String creditorName) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.only(
+            topLeft: Radius.circular(24),
+            topRight: Radius.circular(24),
+          ),
+        ),
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Handle bar
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            // Icon
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.orange.shade50,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.receipt_long,
+                size: 48,
+                color: Colors.orange.shade400,
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            // Title
+            const Text(
+              'Khoản nợ của bạn',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // Description
+            RichText(
+              textAlign: TextAlign.center,
+              text: TextSpan(
+                style: TextStyle(fontSize: 15, color: Colors.grey[600], height: 1.5),
+                children: [
+                  const TextSpan(text: 'Bạn nợ '),
+                  TextSpan(
+                    text: creditorName,
+                    style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black87),
+                  ),
+                  const TextSpan(text: ' số tiền '),
+                  TextSpan(
+                    text: '${Common.formatNumber(debt.shareAmount.toString())}đ',
+                    style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.orange),
+                  ),
+                  const TextSpan(text: '\ncho khoản "'),
+                  TextSpan(
+                    text: debt.expenseTitle,
+                    style: const TextStyle(fontStyle: FontStyle.italic),
+                  ),
+                  const TextSpan(text: '"'),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            // Trạng thái ảnh chứng minh
+            if (debt.hasProof) ...[
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: debt.isProofPending ? Colors.amber.shade50 : Colors.green.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: debt.isProofPending ? Colors.amber.shade200 : Colors.green.shade200,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      debt.isProofPending ? Icons.hourglass_empty : Icons.check_circle,
+                      color: debt.isProofPending ? Colors.amber.shade700 : Colors.green.shade700,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            debt.isProofPending ? 'Đang chờ xác nhận' : 'Đã được xác nhận',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: debt.isProofPending ? Colors.amber.shade700 : Colors.green.shade700,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            debt.isProofPending
+                                ? 'Ảnh chứng minh đã được gửi, đang chờ $creditorName xác nhận'
+                                : 'Thanh toán đã được xác nhận',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey.shade600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              // Nút xem ảnh đã upload
+              OutlinedButton.icon(
+                onPressed: () {
+                  Navigator.pop(context);
+                  _showProofImageDialog(ApiEndpoint.getFullImageUrl(debt.proofImageUrl));
+                },
+                icon: const Icon(Icons.image),
+                label: const Text('Xem ảnh đã gửi'),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ] else ...[
+              // Hướng dẫn upload
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.info_outline, color: Colors.blue.shade700),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Upload ảnh chuyển khoản để $creditorName có thể xác nhận thanh toán',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.blue.shade700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+
+            const SizedBox(height: 24),
+
+            // Buttons
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(context),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      side: BorderSide(color: Colors.grey.shade300),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: const Text(
+                      'Đóng',
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: Colors.black87,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  flex: 2,
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      _pickAndUploadProof(debt);
+                    },
+                    icon: const Icon(Icons.camera_alt, color: Colors.white),
+                    label: Text(
+                      debt.hasProof ? 'Gửi ảnh mới' : 'Upload ảnh chứng minh',
+                      style: const TextStyle(
+                        fontSize: 15,
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.orange,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // 📷 Xem ảnh chứng minh full screen
+  void _showProofImageDialog(String imageUrl) {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Header
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(16),
+                  topRight: Radius.circular(16),
+                ),
+              ),
+              child: Row(
+                children: [
+                  const Text(
+                    'Ảnh chứng minh thanh toán',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
+                ],
+              ),
+            ),
+            // Image
+            Container(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(context).size.height * 0.6,
+              ),
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.only(
+                  bottomLeft: Radius.circular(16),
+                  bottomRight: Radius.circular(16),
+                ),
+              ),
+              child: ClipRRect(
+                borderRadius: const BorderRadius.only(
+                  bottomLeft: Radius.circular(16),
+                  bottomRight: Radius.circular(16),
+                ),
+                child: Image.network(
+                  imageUrl,
+                  fit: BoxFit.contain,
+                  loadingBuilder: (context, child, loadingProgress) {
+                    if (loadingProgress == null) return child;
+                    return Container(
+                      height: 200,
+                      alignment: Alignment.center,
+                      child: CircularProgressIndicator(
+                        value: loadingProgress.expectedTotalBytes != null
+                            ? loadingProgress.cumulativeBytesLoaded /
+                                loadingProgress.expectedTotalBytes!
+                            : null,
+                      ),
+                    );
+                  },
+                  errorBuilder: (context, error, stackTrace) {
+                    return Container(
+                      height: 200,
+                      alignment: Alignment.center,
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.broken_image, size: 48, color: Colors.grey.shade400),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Không thể tải ảnh',
+                            style: TextStyle(color: Colors.grey.shade600),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ),
           ],
         ),
       ),
