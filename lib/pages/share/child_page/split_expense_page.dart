@@ -843,6 +843,7 @@ class _SplitExpensePageState extends State<SplitExpensePage>
       'paidByMemberName': widget.paidByMember.name,
       'date': widget.date.toIso8601String(),
     };
+    // paidByMemberName thì có thể có 2 người hoặc hơn
 
     // Gửi đúng tên trường theo splitType
     switch (splitType) {
