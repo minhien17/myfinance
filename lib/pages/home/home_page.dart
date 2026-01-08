@@ -30,6 +30,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   List<double> currentMonthTotals = [];
   List<double> previousMonthTotals = [];
   List<TransactionModel> listTop5 = [];
+  double _allExpense = 0;
+  double _allIncome = 0;
 
   late TabController _tabController;
 
@@ -211,7 +213,35 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                       Icon(Icons.question_mark_rounded, color: AppColors.grayText),
                     ],
                   ),
+
+                  Row(
+                    children: [
+                      Text(
+                        "Tổng chi tiêu: ",
+                        style: AppStyles.grayText16_500.copyWith(fontSize: 14),
+                      ),
+                      Text(
+                        Common.formatNumber(_allExpense.toString()),
+                        style: AppStyles.grayText16_500.copyWith(fontSize: 14),
+                      ),
+                    ],
+                  ),
+                  Row(
+                    children: [
+                      Text(
+                        "Tổng thu nhập: ",
+                        style: AppStyles.grayText16_500.copyWith(fontSize: 14),
+                      ),
+                      Text(
+                        
+                        Common.formatNumber(_allIncome.toString()),
+                        style: AppStyles.grayText16_500.copyWith(fontSize: 14),
+                      ),
+                    ],
+                  ),
+                  
                   const SizedBox(height: 30),
+
                 
                   // ====== Ví của tôi ======
                   Container(
@@ -237,6 +267,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                           color: AppColors.grayText,
                           margin: const EdgeInsets.symmetric(vertical: 15),
                         ),
+
                         Row(
                           children: [
                             Image.asset(
@@ -245,7 +276,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                             ),
                             const SizedBox(width: 10),
                             Text(
-                              "Tổng chi tháng này",
+                              "Chi tiêu tháng này",
                               style: AppStyles.titleText16_500,
                             ),
                             const Spacer(),
@@ -264,7 +295,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                             ),
                             const SizedBox(width: 10),
                             Text(
-                              "Tổng thu tháng này",
+                              "Thu nhập tháng này",
                               style: AppStyles.titleText16_500,
                             ),
                             const Spacer(),
@@ -479,6 +510,21 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       onSuccess: (response) {
         if (response.data != null) {
           _balance = Common.parseDouble(response.data['balance']);
+          
+          if (mounted) setState(() {});
+        }
+      },
+      onError: (error) => print("Balance API error: $error"),
+    );
+
+    // lấy all expense
+    ApiUtil.getInstance()!.get(
+      url: ApiEndpoint.allexpense,
+      onSuccess: (response) {
+        if (response.data != null) {
+          _allExpense = Common.parseDouble(response.data['totalExpenses']);
+          _allIncome = Common.parseDouble(response.data['totalIncome']);
+          
           if (mounted) setState(() {});
         }
       },
@@ -558,6 +604,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               // Cập nhật tổng thu chi từ summary API
               _totalExpense = Common.parseDouble(summaryData['totals']['expense']);
               _totalIncome = Common.parseDouble(summaryData['totals']['income']);
+              _allExpense = Common.parseDouble(summaryData['totals']['allexpense']);
+              _allIncome = Common.parseDouble(summaryData['totals']['allincome']);
 
               print("💰 Updated from summary API - Expense: $_totalExpense, Income: $_totalIncome");
             });
