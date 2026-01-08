@@ -245,7 +245,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                             ),
                             const SizedBox(width: 10),
                             Text(
-                              "Tổng chi",
+                              "Tổng chi tháng này",
                               style: AppStyles.titleText16_500,
                             ),
                             const Spacer(),
@@ -264,7 +264,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                             ),
                             const SizedBox(width: 10),
                             Text(
-                              "Tổng thu",
+                              "Tổng thu tháng này",
                               style: AppStyles.titleText16_500,
                             ),
                             const Spacer(),
@@ -321,7 +321,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                           children: [
                             
                             Text(
-                              "Tổng chi: ",
+                              "Tổng chi tháng này: ",
                               style: AppStyles.titleText16_500,
                             ),
           

@@ -1,4 +1,4 @@
-import 'dart:async';  // Keep for Timer
+import 'dart:async';  // For Timer (debounce)
 
 import 'package:bootstrap_icons/bootstrap_icons.dart';
 import 'package:flutter/material.dart';
@@ -15,12 +15,12 @@ import 'package:my_finance/pages/share/child_page/edit_transation_group_page.dar
 import 'package:my_finance/pages/share/child_page/view_report_page.dart';
 import 'package:my_finance/pages/share/child_page/view_members_page.dart';
 import 'package:my_finance/res/app_colors.dart';
+import 'package:my_finance/services/websocket_service.dart';
 import 'package:my_finance/shared_preference.dart';
 import 'package:my_finance/utils.dart';
 
 import 'package:my_finance/models/group_model.dart';
 import 'package:my_finance/models/member_model.dart';
-// import 'package:my_finance/api/sse_service.dart';  // SSE disabled temporarily
 
 class TransactionGroupPage extends StatefulWidget {
   final Group group;
@@ -52,50 +52,24 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
 
   List<Member> groupMembers = []; // Lưu danh sách members để hiển thị tên trong phần nợ
 
+  // Danh sách lời mời đang chờ của group (cho owner)
+  List<Map<String, dynamic>> _groupPendingInvitations = [];
+
   // State để lưu thông tin group có thể thay đổi
   late String groupName;
   late String groupCode;
   late String? groupOwnerId;
 
-  // 🔄 Polling timer for real-time updates
-  Timer? _pollingTimer;
-  static const Duration _pollingInterval = Duration(seconds: 10);
-
   // Flag to prevent double navigation when user deletes group themselves
   bool _isLeavingPage = false;
+
+  // 🔌 WebSocket service
+  final WebSocketService _wsService = WebSocketService();
 
   void reLoadPage(){
     getListMonth();
     getListTransaction(selectedMonth);
     fetchDebts(selectedMonth);
-  }
-
-  // 🔄 Polling: Start periodic refresh
-  void _startPolling() {
-    _pollingTimer?.cancel();
-    _pollingTimer = Timer.periodic(_pollingInterval, (timer) {
-      if (mounted && !_isLeavingPage) {
-        print('🔄 Polling: Refreshing group data...');
-        _pollData();
-      }
-    });
-    print('🔄 Polling: Started with interval ${_pollingInterval.inSeconds}s');
-  }
-
-  // 🔄 Polling: Stop periodic refresh
-  void _stopPolling() {
-    _pollingTimer?.cancel();
-    _pollingTimer = null;
-    print('🔄 Polling: Stopped');
-  }
-
-  // 🔄 Poll data without showing loading indicator
-  void _pollData() {
-    // Refresh transactions and debts
-    getListTransaction(selectedMonth);
-    fetchDebts(selectedMonth);
-    // Refresh members
-    fetchGroupMembers();
   }
 
   Future<void> fetchDebts(String monthYear) async {
@@ -427,10 +401,70 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
           });
 
           print("🔄 Fetched group info: name=$groupName, ownerId=$groupOwnerId, members=${groupMembers.length}");
+
+          // Fetch pending invitations nếu là owner
+          _fetchGroupPendingInvitations();
         }
       },
       onError: (error) {
         print("❌ Error fetching members: $error");
+      },
+    );
+  }
+
+  // Lấy danh sách lời mời đang chờ của group (cho owner)
+  void _fetchGroupPendingInvitations() {
+    // Chỉ fetch nếu là owner
+    if (currentUserId.isEmpty || groupOwnerId != currentUserId) {
+      setState(() {
+        _groupPendingInvitations = [];
+      });
+      return;
+    }
+
+    ApiUtil.getInstance()!.get(
+      url: ApiEndpoint.groupInvitations(widget.group.id),
+      onSuccess: (response) {
+        if (!mounted) return;
+        try {
+          final List<dynamic> data = response.data ?? [];
+          setState(() {
+            _groupPendingInvitations = data.map((item) => Map<String, dynamic>.from(item)).toList();
+          });
+          print('📨 Fetched ${_groupPendingInvitations.length} pending invitations for group');
+        } catch (e) {
+          print('Error parsing group pending invitations: $e');
+        }
+      },
+      onError: (error) {
+        print('Error fetching group pending invitations: $error');
+      },
+    );
+  }
+
+  // Hủy lời mời
+  void _cancelInvitation(String invitationId) {
+    showLoading(context);
+    ApiUtil.getInstance()!.delete(
+      url: ApiEndpoint.groupInvitationCancel(widget.group.id, invitationId),
+      onSuccess: (response) {
+        hideLoading();
+        _fetchGroupPendingInvitations();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Đã hủy lời mời'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      },
+      onError: (error) {
+        hideLoading();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Lỗi: $error'),
+            backgroundColor: Colors.red,
+          ),
+        );
       },
     );
   }
@@ -469,14 +503,164 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
     });
     reLoadPage();
 
-    // 🔄 Polling: Start periodic refresh
-    _startPolling();
+    // 🔌 WebSocket: Setup listeners
+    _setupWebSocket();
+  }
+
+  // 🔌 WebSocket: Setup và đăng ký listeners cho group này
+  void _setupWebSocket() {
+    _wsService.connect();
+
+    // Join room của group để nhận updates
+    _wsService.joinGroupRoom(widget.group.id, userId: currentUserId);
+    _wsService.joinExpenseRoom(widget.group.id);
+
+    // Khi có member mới tham gia
+    _wsService.onMemberJoined = (data) {
+      if (_isLeavingPage) return;
+      final eventGroupId = data['groupId']?.toString();
+      if (eventGroupId != widget.group.id) return;
+
+      print('🔌 WS TransactionGroup: Member joined - ${data['memberName']}');
+      fetchGroupMembers();
+      _showSnackBar('${data['memberName'] ?? 'Thành viên mới'} đã tham gia nhóm', Colors.green);
+    };
+
+    // Khi member rời nhóm
+    _wsService.onMemberLeft = (data) {
+      if (_isLeavingPage) return;
+      final eventGroupId = data['groupId']?.toString();
+      if (eventGroupId != widget.group.id) return;
+
+      print('🔌 WS TransactionGroup: Member left - ${data['memberName']}');
+      fetchGroupMembers();
+      _showSnackBar('${data['memberName'] ?? 'Thành viên'} đã rời nhóm', Colors.orange);
+    };
+
+    // Khi member được thêm vào
+    _wsService.onMemberAdded = (data) {
+      if (_isLeavingPage) return;
+      final eventGroupId = data['groupId']?.toString();
+      if (eventGroupId != widget.group.id) return;
+
+      print('🔌 WS TransactionGroup: Member added - ${data['memberName']}');
+      fetchGroupMembers();
+      _showSnackBar('${data['memberName'] ?? 'Thành viên mới'} được thêm vào nhóm', Colors.green);
+    };
+
+    // Khi member bị xóa
+    _wsService.onMemberRemoved = (data) {
+      if (_isLeavingPage) return;
+      final eventGroupId = data['groupId']?.toString();
+      if (eventGroupId != widget.group.id) return;
+
+      print('🔌 WS TransactionGroup: Member removed - ${data['memberName']}');
+      fetchGroupMembers();
+      _showSnackBar('${data['memberName'] ?? 'Thành viên'} đã bị xóa khỏi nhóm', Colors.orange);
+    };
+
+    // Khi quyền sở hữu được chuyển
+    _wsService.onOwnershipTransferred = (data) {
+      if (_isLeavingPage) return;
+      final eventGroupId = data['groupId']?.toString();
+      if (eventGroupId != widget.group.id) return;
+
+      print('🔌 WS TransactionGroup: Ownership transferred');
+      fetchGroupMembers();
+      final newOwnerName = data['newOwnerName'] ?? 'thành viên khác';
+      _showSnackBar('Quyền trưởng nhóm đã chuyển cho $newOwnerName', Colors.amber);
+    };
+
+    // Khi nhóm bị xóa
+    _wsService.onGroupDeleted = (data) {
+      if (_isLeavingPage) return;
+      final eventGroupId = data['groupId']?.toString();
+      if (eventGroupId != widget.group.id) return;
+
+      print('🔌 WS TransactionGroup: Group deleted');
+      _showSnackBar('Nhóm đã bị xóa', Colors.red);
+      Navigator.pop(context, true);
+    };
+
+    // Khi có chi tiêu mới
+    _wsService.onExpenseCreated = (data) {
+      if (_isLeavingPage) return;
+      final eventGroupId = data['groupId']?.toString();
+      if (eventGroupId != widget.group.id) return;
+
+      print('🔌 WS TransactionGroup: Expense created');
+      reLoadPage();
+      final expense = data['expense'];
+      final title = expense?['title'] ?? 'Chi tiêu mới';
+      _showSnackBar('Chi tiêu mới: $title', Colors.blue);
+    };
+
+    // Khi có thanh toán
+    _wsService.onShareMarkedPaid = (data) {
+      if (_isLeavingPage) return;
+      final eventGroupId = data['groupId']?.toString();
+      if (eventGroupId != widget.group.id) return;
+
+      print('🔌 WS TransactionGroup: Share marked paid');
+      reLoadPage();
+      final memberName = data['memberName'] ?? 'Thành viên';
+      _showSnackBar('$memberName đã thanh toán', Colors.green);
+    };
+
+    // ========== INVITATION EVENTS ==========
+
+    // Khi lời mời được chấp nhận (owner nhận được)
+    _wsService.onInvitationAccepted = (data) {
+      if (_isLeavingPage) return;
+      final eventGroupId = data['groupId']?.toString();
+      if (eventGroupId != widget.group.id) return;
+
+      print('🔌 WS TransactionGroup: Invitation accepted - ${data['invitedUserName']}');
+      fetchGroupMembers();
+      _fetchGroupPendingInvitations();
+      final invitedName = data['invitedUserName'] ?? data['memberName'] ?? 'Thành viên';
+      _showSnackBar('$invitedName đã chấp nhận lời mời', Colors.green);
+    };
+
+    // Khi lời mời bị từ chối (owner nhận được)
+    _wsService.onInvitationRejected = (data) {
+      if (_isLeavingPage) return;
+      final eventGroupId = data['groupId']?.toString();
+      if (eventGroupId != widget.group.id) return;
+
+      print('🔌 WS TransactionGroup: Invitation rejected - ${data['invitedUserName']}');
+      _fetchGroupPendingInvitations();
+      final invitedName = data['invitedUserName'] ?? data['memberName'] ?? 'Thành viên';
+      _showSnackBar('$invitedName đã từ chối lời mời', Colors.orange);
+    };
+  }
+
+  void _showSnackBar(String message, Color color) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(Icons.notifications_active, color: Colors.white, size: 20),
+            const SizedBox(width: 12),
+            Expanded(child: Text(message)),
+          ],
+        ),
+        backgroundColor: color.withOpacity(0.9),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        margin: const EdgeInsets.all(16),
+        duration: const Duration(seconds: 3),
+      ),
+    );
   }
 
   @override
   void dispose() {
-    // 🔄 Polling: Stop periodic refresh
-    _stopPolling();
+    // 🔌 WebSocket: Leave rooms và clear callbacks
+    _wsService.leaveGroupRoom(widget.group.id);
+    _wsService.leaveExpenseRoom(widget.group.id);
+    _wsService.clearGroupCallbacks(); // Không xóa onAddedToGroup
     WidgetsBinding.instance.removeObserver(this); // Remove lifecycle observer
     _scrollController.dispose();
     super.dispose();
@@ -848,14 +1032,14 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
     
     // 3. Định nghĩa danh sách các lựa chọn trong menu
     itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
-      // Lựa chọn 1: Thêm người
+      // Lựa chọn 1: Mời thành viên
       const PopupMenuItem<String>(
         value: 'add_member',
         child: Row(
           children: [
             Icon(Icons.person_add, color: AppColors.blackIcon),
             SizedBox(width: 12),
-            Text('Thêm thành viên'),
+            Text('Mời thành viên'),
           ],
         ),
       ),
@@ -1047,9 +1231,15 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
                       ),
                     ],
                   ),
-                  
+
+                  // Section lời mời đang chờ (chỉ hiển thị cho owner)
+                  if (_groupPendingInvitations.isNotEmpty && groupOwnerId == currentUserId) ...[
+                    const SizedBox(height: 16),
+                    _buildGroupPendingInvitationsSection(),
+                  ],
+
                   const SizedBox(height: 20),
-                    
+
                   // Tab selection
                   Row(
                     children: [
@@ -1372,6 +1562,85 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
     );
   }
 
+  // Section hiển thị lời mời đang chờ của group (cho owner)
+  Widget _buildGroupPendingInvitationsSection() {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.blue.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.blue.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.send, color: Colors.blue.shade600, size: 18),
+              const SizedBox(width: 8),
+              Text(
+                'Lời mời đã gửi (${_groupPendingInvitations.length})',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.blue.shade700,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          ..._groupPendingInvitations.map((invitation) => _buildGroupInvitationItem(invitation)),
+        ],
+      ),
+    );
+  }
+
+  // Item lời mời đã gửi
+  Widget _buildGroupInvitationItem(Map<String, dynamic> invitation) {
+    final invitationId = invitation['id']?.toString() ?? invitation['invitationId']?.toString() ?? '';
+    final inviteeName = invitation['inviteeName']?.toString() ??
+        invitation['invitee']?['username']?.toString() ??
+        invitation['suggestedMemberName']?.toString() ??
+        'Unknown';
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8.0),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: Colors.blue.shade100,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(Icons.person_outline, color: Colors.blue.shade600, size: 16),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              inviteeName,
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: Colors.black87,
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: () => _cancelInvitation(invitationId),
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.red.shade600,
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              minimumSize: Size.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+            child: const Text('Hủy', style: TextStyle(fontSize: 13)),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildSummaryItem({
     required IconData icon,
     required String label,
@@ -1606,7 +1875,7 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
     );
   }
 
-  // Bottom sheet thêm thành viên
+  // Bottom sheet mời thành viên
   void _showAddMemberSheet() {
     final TextEditingController searchController = TextEditingController();
     List<Map<String, dynamic>> searchResults = [];
@@ -1647,40 +1916,39 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
             );
           }
 
-          void addMemberToGroup(Map<String, dynamic> user) {
-            final userId = user["id"] ?? user["userId"] ?? "";
-            final memberName = user["username"] ?? user["name"] ?? "Unknown";
+          void inviteUserToGroup(Map<String, dynamic> user) {
+            final inviteeUserId = user["id"] ?? user["userId"] ?? "";
+            final suggestedName = user["username"] ?? user["name"] ?? "Unknown";
 
-            print("🔍 addMemberToGroup - user data: $user");
-            print("🔍 addMemberToGroup - userId: $userId, memberName: $memberName");
+            print("🔍 inviteUserToGroup - user data: $user");
+            print("🔍 inviteUserToGroup - inviteeUserId: $inviteeUserId, suggestedName: $suggestedName");
 
             showLoading(context);
             ApiUtil.getInstance()!.post(
-              url: ApiEndpoint.groupMembers(widget.group.id),
+              url: ApiEndpoint.groupInvite(widget.group.id),
               body: {
-                "userId": userId,
-                "memberName": memberName,
+                "invitedUserId": inviteeUserId,
+                "suggestedMemberName": suggestedName,
               },
               onSuccess: (response) {
                 hideLoading();
                 Navigator.pop(context);
+                _fetchGroupPendingInvitations();
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Row(
                       children: [
-                        const Icon(Icons.check_circle_outline, color: Colors.white),
+                        const Icon(Icons.send, color: Colors.white),
                         const SizedBox(width: 12),
-                        Text('Đã thêm $memberName vào nhóm'),
+                        Text('Đã gửi lời mời đến $suggestedName'),
                       ],
                     ),
-                    backgroundColor: Colors.green.shade600,
+                    backgroundColor: Colors.blue.shade600,
                     behavior: SnackBarBehavior.floating,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     margin: const EdgeInsets.all(16),
                   ),
                 );
-                // Reload members từ API
-                fetchGroupMembers();
               },
               onError: (error) {
                 hideLoading();
@@ -1729,7 +1997,7 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
                 const Padding(
                   padding: EdgeInsets.all(16),
                   child: Text(
-                    'Thêm thành viên',
+                    'Mời thành viên',
                     style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                   ),
                 ),
@@ -1847,7 +2115,7 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
                                             ),
                                           )
                                         : ElevatedButton(
-                                            onPressed: () => addMemberToGroup(user),
+                                            onPressed: () => inviteUserToGroup(user),
                                             style: ElevatedButton.styleFrom(
                                               backgroundColor: AppColors.green,
                                               shape: RoundedRectangleBorder(
@@ -1855,7 +2123,7 @@ class _TransactionGroupPageState extends State<TransactionGroupPage> with Single
                                               ),
                                               padding: const EdgeInsets.symmetric(horizontal: 16),
                                             ),
-                                            child: const Text('Thêm', style: TextStyle(color: Colors.white)),
+                                            child: const Text('Mời', style: TextStyle(color: Colors.white)),
                                           ),
                                   ),
                                 );

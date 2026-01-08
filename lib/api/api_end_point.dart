@@ -116,6 +116,22 @@ class ApiEndpoint {
   static String groupRemoveMember(String groupId, String memberId) => "$groupService/$groupId/members/$memberId";
 
   // ============================================
+  // 📨 GROUP INVITATION ENDPOINTS
+  // ============================================
+  // Invite user to group: POST /:groupId/invitations
+  static String groupInvite(String groupId) => "$groupService/$groupId/invitations";
+  // Get pending invitations of a group: GET /:groupId/invitations
+  static String groupInvitations(String groupId) => "$groupService/$groupId/invitations";
+  // Get my pending invitations: GET /invitations/my
+  static String get groupInvitationsMy => "$groupService/invitations/my";
+  // Accept invitation: POST /invitations/:id/accept
+  static String groupInvitationAccept(String invitationId) => "$groupService/invitations/$invitationId/accept";
+  // Reject invitation: POST /invitations/:id/reject
+  static String groupInvitationReject(String invitationId) => "$groupService/invitations/$invitationId/reject";
+  // Cancel invitation: DELETE /:groupId/invitations/:id
+  static String groupInvitationCancel(String groupId, String invitationId) => "$groupService/$groupId/invitations/$invitationId";
+
+  // ============================================
   // 💸 GROUP EXPENSE ENDPOINTS
   // Kong: /api/group-expenses/:gId/expenses/* -> transaction-service:3001/groups/:gId/expenses/*
   // ============================================
